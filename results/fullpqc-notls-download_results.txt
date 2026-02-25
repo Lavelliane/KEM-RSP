@@ -1,0 +1,605 @@
+Process 0 (that is, the initial process):
+{1}new devMain: Id_t;
+{2}new tidMain: Tid_t;
+{3}new SK_EUICC_KEM: KEMsk_t;
+{4}let PK_EUICC_KEM: KEMpk_t = kem_pk(SK_EUICC_KEM) in
+{5}let PK_SMDP_KEM: KEMpk_t = kem_pk(SK_SMDP_KEM) in
+(
+    {6}!
+    {7}let dev: Id_t = devMain in
+    {8}let tid: Tid_t = tidMain in
+    {9}let profile: Profile_t = secret_profile in
+    {10}let PK_SMDP_KEM_1: KEMpk_t = kem_pk(SK_SMDP_KEM) in
+    {11}new r_prepare: KEMcoin_t;
+    {12}let CT_PREPARE: bitstring = kem_enc(PK_EUICC_KEM,r_prepare) in
+    {13}let SS_PREPARE: KEMss_t = kem_ss(PK_EUICC_KEM,r_prepare) in
+    {14}let k_prepare: SymKey_t = kdf_bind(SS_PREPARE,tid) in
+    {15}let prepare_mac: bitstring = mac(k_prepare,msg_prepare(tid)) in
+    {16}out(ES9, (tid,CT_PREPARE,prepare_mac));
+    {17}in(ES9, (tid3: Tid_t,PK_EU_PROFILE: KEMpk_t,CT_RESP: bitstring,resp_mac: bitstring));
+    {18}if (tid3 = tid) then
+    {19}let SS_RESP: KEMss_t = kem_dec(CT_RESP,SK_SMDP_KEM) in
+    {20}let k_resp: SymKey_t = kdf_bind(SS_RESP,tid) in
+    {21}let expected_resp_mac: bitstring = mac(k_resp,msg_response(tid,PK_EU_PROFILE)) in
+    {22}if (resp_mac = expected_resp_mac) then
+    {23}new r_profile: KEMcoin_t;
+    {24}let CT_PROFILE: bitstring = kem_enc(PK_EU_PROFILE,r_profile) in
+    {25}let SS_PROFILE: KEMss_t = kem_ss(PK_EU_PROFILE,r_profile) in
+    {26}let k_profile: SymKey_t = kdf_profile(SS_PROFILE) in
+    {27}let encrypted_profile: bitstring = senc(profile,k_profile) in
+    {28}let profile_mac_out: bitstring = mac(k_profile,msg_profile(tid,CT_PROFILE,encrypted_profile)) in
+    {29}new r_profile_auth: KEMcoin_t;
+    {30}let CT_PROFILE_AUTH: bitstring = kem_enc(PK_EUICC_KEM,r_profile_auth) in
+    {31}let SS_PROFILE_AUTH: KEMss_t = kem_ss(PK_EUICC_KEM,r_profile_auth) in
+    {32}let k_profile_auth: SymKey_t = kdf_bind(SS_PROFILE_AUTH,tid) in
+    {33}let profile_auth_mac: bitstring = mac(k_profile_auth,msg_profile(tid,CT_PROFILE,encrypted_profile)) in
+    {34}event SMDP_BOUND_PROFILE(dev,tid,profile);
+    {35}out(ES9, (tid,CT_PROFILE,encrypted_profile,profile_mac_out,CT_PROFILE_AUTH,profile_auth_mac));
+    {36}in(ES9, (tid4: Tid_t,iccid: ICCID_t,CT_INSTALL: bitstring,install_mac: bitstring));
+    {37}if (tid4 = tid) then
+    {38}let SS_INSTALL: KEMss_t = kem_dec(CT_INSTALL,SK_SMDP_KEM) in
+    {39}let k_install: SymKey_t = kdf_bind_install(SS_INSTALL,tid,iccid) in
+    {40}let expected_install_mac: bitstring = mac(k_install,msg_install(tid,iccid)) in
+    {41}if (install_mac = expected_install_mac) then
+    {42}event SMDP_INSTALL_CONFIRMED(dev,tid,iccid)
+) | (
+    {43}!
+    {44}let dev_1: Id_t = devMain in
+    {45}let tid_1: Tid_t = tidMain in
+    {46}let SK_EUICC_KEM_1: KEMsk_t = SK_EUICC_KEM in
+    {47}in(ES9, (tid_pd: Tid_t,CT_PREPARE_1: bitstring,prepare_mac_1: bitstring));
+    {48}if (tid_pd = tid_1) then
+    {49}let SS_PREPARE_1: KEMss_t = kem_dec(CT_PREPARE_1,SK_EUICC_KEM_1) in
+    {50}let k_prepare_1: SymKey_t = kdf_bind(SS_PREPARE_1,tid_1) in
+    {51}let expected_prepare_mac: bitstring = mac(k_prepare_1,msg_prepare(tid_1)) in
+    {52}if (prepare_mac_1 = expected_prepare_mac) then
+    {53}new SK_EU_PROFILE: KEMsk_t;
+    {54}let PK_EU_PROFILE_1: KEMpk_t = kem_pk(SK_EU_PROFILE) in
+    {55}new r_resp: KEMcoin_t;
+    {56}let CT_RESP_1: bitstring = kem_enc(PK_SMDP_KEM,r_resp) in
+    {57}let SS_RESP_1: KEMss_t = kem_ss(PK_SMDP_KEM,r_resp) in
+    {58}let k_resp_1: SymKey_t = kdf_bind(SS_RESP_1,tid_1) in
+    {59}let resp_mac_1: bitstring = mac(k_resp_1,msg_response(tid_1,PK_EU_PROFILE_1)) in
+    {60}out(ES9, (tid_1,PK_EU_PROFILE_1,CT_RESP_1,resp_mac_1));
+    {61}in(ES9, (tid_bpp: Tid_t,CT_PROFILE_1: bitstring,encrypted_prof: bitstring,profile_mac_in: bitstring,CT_PROFILE_AUTH_1: bitstring,profile_auth_mac_1: bitstring));
+    {62}if (tid_bpp = tid_1) then
+    {63}let SS_PROFILE_AUTH_1: KEMss_t = kem_dec(CT_PROFILE_AUTH_1,SK_EUICC_KEM_1) in
+    {64}let k_profile_auth_1: SymKey_t = kdf_bind(SS_PROFILE_AUTH_1,tid_1) in
+    {65}let expected_auth_mac: bitstring = mac(k_profile_auth_1,msg_profile(tid_1,CT_PROFILE_1,encrypted_prof)) in
+    {66}if (profile_auth_mac_1 = expected_auth_mac) then
+    {67}let SS_PROFILE_1: KEMss_t = kem_dec(CT_PROFILE_1,SK_EU_PROFILE) in
+    {68}let k_profile_1: SymKey_t = kdf_profile(SS_PROFILE_1) in
+    {69}let expected_profile_mac: bitstring = mac(k_profile_1,msg_profile(tid_1,CT_PROFILE_1,encrypted_prof)) in
+    {70}if (profile_mac_in = expected_profile_mac) then
+    {71}let profile_1: Profile_t = sdec(encrypted_prof,k_profile_1) in
+    {72}new iccid_1: ICCID_t;
+    {73}event EUICC_PROFILE_INSTALLED(dev_1,tid_1,profile_1,iccid_1);
+    {74}new r_install: KEMcoin_t;
+    {75}let CT_INSTALL_1: bitstring = kem_enc(PK_SMDP_KEM,r_install) in
+    {76}let SS_INSTALL_1: KEMss_t = kem_ss(PK_SMDP_KEM,r_install) in
+    {77}let k_install_1: SymKey_t = kdf_bind_install(SS_INSTALL_1,tid_1,iccid_1) in
+    {78}let install_mac_1: bitstring = mac(k_install_1,msg_install(tid_1,iccid_1)) in
+    {79}out(ES9, (tid_1,iccid_1,CT_INSTALL_1,install_mac_1))
+) | (
+    {80}phase 1;
+    {81}out(c, SK_SMDP_KEM)
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}new devMain: Id_t;
+{2}new tidMain: Tid_t;
+{3}new SK_EUICC_KEM: KEMsk_t;
+(
+    {6}!
+    {11}new r_prepare: KEMcoin_t;
+    {4}let PK_EUICC_KEM: KEMpk_t = kem_pk(SK_EUICC_KEM) in
+    {13}let SS_PREPARE: KEMss_t = kem_ss(PK_EUICC_KEM,r_prepare) in
+    {8}let tid: Tid_t = tidMain in
+    {14}let k_prepare: SymKey_t = kdf_bind(SS_PREPARE,tid) in
+    {15}let prepare_mac: bitstring = mac(k_prepare,msg_prepare(tid)) in
+    {12}let CT_PREPARE: bitstring = kem_enc(PK_EUICC_KEM,r_prepare) in
+    {16}out(ES9, (tid,CT_PREPARE,prepare_mac));
+    {17}in(ES9, (tid3: Tid_t,PK_EU_PROFILE: KEMpk_t,CT_RESP: bitstring,resp_mac: bitstring));
+    {18}if (tid3 = tid) then
+    {19}let SS_RESP: KEMss_t = kem_dec(CT_RESP,SK_SMDP_KEM) in
+    {20}let k_resp: SymKey_t = kdf_bind(SS_RESP,tid) in
+    {21}let expected_resp_mac: bitstring = mac(k_resp,msg_response(tid,PK_EU_PROFILE)) in
+    {22}if (resp_mac = expected_resp_mac) then
+    {23}new r_profile: KEMcoin_t;
+    {29}new r_profile_auth: KEMcoin_t;
+    {9}let profile: Profile_t = secret_profile in
+    {7}let dev: Id_t = devMain in
+    {34}event SMDP_BOUND_PROFILE(dev,tid,profile);
+    {31}let SS_PROFILE_AUTH: KEMss_t = kem_ss(PK_EUICC_KEM,r_profile_auth) in
+    {32}let k_profile_auth: SymKey_t = kdf_bind(SS_PROFILE_AUTH,tid) in
+    {25}let SS_PROFILE: KEMss_t = kem_ss(PK_EU_PROFILE,r_profile) in
+    {26}let k_profile: SymKey_t = kdf_profile(SS_PROFILE) in
+    {27}let encrypted_profile: bitstring = senc(profile,k_profile) in
+    {24}let CT_PROFILE: bitstring = kem_enc(PK_EU_PROFILE,r_profile) in
+    {33}let profile_auth_mac: bitstring = mac(k_profile_auth,msg_profile(tid,CT_PROFILE,encrypted_profile)) in
+    {30}let CT_PROFILE_AUTH: bitstring = kem_enc(PK_EUICC_KEM,r_profile_auth) in
+    {28}let profile_mac_out: bitstring = mac(k_profile,msg_profile(tid,CT_PROFILE,encrypted_profile)) in
+    {35}out(ES9, (tid,CT_PROFILE,encrypted_profile,profile_mac_out,CT_PROFILE_AUTH,profile_auth_mac));
+    {36}in(ES9, (tid4: Tid_t,iccid: ICCID_t,CT_INSTALL: bitstring,install_mac: bitstring));
+    {37}if (tid4 = tid) then
+    {38}let SS_INSTALL: KEMss_t = kem_dec(CT_INSTALL,SK_SMDP_KEM) in
+    {39}let k_install: SymKey_t = kdf_bind_install(SS_INSTALL,tid,iccid) in
+    {40}let expected_install_mac: bitstring = mac(k_install,msg_install(tid,iccid)) in
+    {41}if (install_mac = expected_install_mac) then
+    {42}event SMDP_INSTALL_CONFIRMED(dev,tid,iccid)
+) | (
+    {43}!
+    {47}in(ES9, (tid_pd: Tid_t,CT_PREPARE_1: bitstring,prepare_mac_1: bitstring));
+    {45}let tid_1: Tid_t = tidMain in
+    {48}if (tid_pd = tid_1) then
+    {46}let SK_EUICC_KEM_1: KEMsk_t = SK_EUICC_KEM in
+    {49}let SS_PREPARE_1: KEMss_t = kem_dec(CT_PREPARE_1,SK_EUICC_KEM_1) in
+    {50}let k_prepare_1: SymKey_t = kdf_bind(SS_PREPARE_1,tid_1) in
+    {51}let expected_prepare_mac: bitstring = mac(k_prepare_1,msg_prepare(tid_1)) in
+    {52}if (prepare_mac_1 = expected_prepare_mac) then
+    {53}new SK_EU_PROFILE: KEMsk_t;
+    {55}new r_resp: KEMcoin_t;
+    {5}let PK_SMDP_KEM: KEMpk_t = kem_pk(SK_SMDP_KEM) in
+    {57}let SS_RESP_1: KEMss_t = kem_ss(PK_SMDP_KEM,r_resp) in
+    {58}let k_resp_1: SymKey_t = kdf_bind(SS_RESP_1,tid_1) in
+    {54}let PK_EU_PROFILE_1: KEMpk_t = kem_pk(SK_EU_PROFILE) in
+    {59}let resp_mac_1: bitstring = mac(k_resp_1,msg_response(tid_1,PK_EU_PROFILE_1)) in
+    {56}let CT_RESP_1: bitstring = kem_enc(PK_SMDP_KEM,r_resp) in
+    {60}out(ES9, (tid_1,PK_EU_PROFILE_1,CT_RESP_1,resp_mac_1));
+    {61}in(ES9, (tid_bpp: Tid_t,CT_PROFILE_1: bitstring,encrypted_prof: bitstring,profile_mac_in: bitstring,CT_PROFILE_AUTH_1: bitstring,profile_auth_mac_1: bitstring));
+    {62}if (tid_bpp = tid_1) then
+    {63}let SS_PROFILE_AUTH_1: KEMss_t = kem_dec(CT_PROFILE_AUTH_1,SK_EUICC_KEM_1) in
+    {64}let k_profile_auth_1: SymKey_t = kdf_bind(SS_PROFILE_AUTH_1,tid_1) in
+    {65}let expected_auth_mac: bitstring = mac(k_profile_auth_1,msg_profile(tid_1,CT_PROFILE_1,encrypted_prof)) in
+    {66}if (profile_auth_mac_1 = expected_auth_mac) then
+    {67}let SS_PROFILE_1: KEMss_t = kem_dec(CT_PROFILE_1,SK_EU_PROFILE) in
+    {68}let k_profile_1: SymKey_t = kdf_profile(SS_PROFILE_1) in
+    {69}let expected_profile_mac: bitstring = mac(k_profile_1,msg_profile(tid_1,CT_PROFILE_1,encrypted_prof)) in
+    {70}if (profile_mac_in = expected_profile_mac) then
+    {71}let profile_1: Profile_t = sdec(encrypted_prof,k_profile_1) in
+    {72}new iccid_1: ICCID_t;
+    {44}let dev_1: Id_t = devMain in
+    {73}event EUICC_PROFILE_INSTALLED(dev_1,tid_1,profile_1,iccid_1);
+    {74}new r_install: KEMcoin_t;
+    {76}let SS_INSTALL_1: KEMss_t = kem_ss(PK_SMDP_KEM,r_install) in
+    {77}let k_install_1: SymKey_t = kdf_bind_install(SS_INSTALL_1,tid_1,iccid_1) in
+    {78}let install_mac_1: bitstring = mac(k_install_1,msg_install(tid_1,iccid_1)) in
+    {75}let CT_INSTALL_1: bitstring = kem_enc(PK_SMDP_KEM,r_install) in
+    {79}out(ES9, (tid_1,iccid_1,CT_INSTALL_1,install_mac_1))
+) | (
+    {80}phase 1;
+    {81}out(c, SK_SMDP_KEM)
+)
+
+-- Query not attacker_p1(secret_profile[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 161 rules (62 with conclusion selected). Queue: 13 rules.
+Starting query not attacker_p1(secret_profile[])
+RESULT not attacker_p1(secret_profile[]) is true.
+-- Query not attacker_p1(secret_profile[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 161 rules (62 with conclusion selected). Queue: 13 rules.
+Starting query not attacker_p1(secret_profile[])
+RESULT not attacker_p1(secret_profile[]) is true.
+-- Query inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) ==> inj-event(SMDP_BOUND_PROFILE(dev_2,tid_2,profile_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 163 rules (62 with conclusion selected). Queue: 14 rules.
+Starting query inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) ==> inj-event(SMDP_BOUND_PROFILE(dev_2,tid_2,profile_2))
+goal reachable: b-inj-event(SMDP_BOUND_PROFILE(devMain[],tidMain[],secret_profile[]),@occ34_1) -> inj-event(EUICC_PROFILE_INSTALLED(devMain[],tidMain[],secret_profile[],iccid_2),@occ73_1)
+The hypothesis occurs strictly before the conclusion.
+Abbreviations:
+r_prepare_1 = r_prepare[!1 = @sid]
+r_resp_1 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+SK_EU_PROFILE_1 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+r_profile_auth_1 = r_profile_auth[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_2]
+r_profile_1 = r_profile[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_2]
+iccid_2 = iccid_1[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+@occ73_1 = @occ73[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+@occ34_1 = @occ34[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_2]
+RESULT inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) ==> inj-event(SMDP_BOUND_PROFILE(dev_2,tid_2,profile_2)) is true.
+-- Query inj-event(SMDP_INSTALL_CONFIRMED(dev_2,tid_2,iccid_2)) ==> inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 163 rules (62 with conclusion selected). Queue: 13 rules.
+Starting query inj-event(SMDP_INSTALL_CONFIRMED(dev_2,tid_2,iccid_2)) ==> inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2))
+goal reachable: @sid ≠ @sid_1 && b-inj-event(EUICC_PROFILE_INSTALLED(devMain[],tidMain[],secret_profile[],iccid_2),@occ73_2) -> inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1) && inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2)
+Abbreviations:
+r_prepare_1 = r_prepare[!1 = @sid_2]
+r_resp_1 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_3]
+SK_EU_PROFILE_1 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_3]
+r_profile_auth_1 = r_profile_auth[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_4]
+r_profile_1 = r_profile[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_4]
+iccid_2 = iccid_1[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_3]
+r_install_1 = r_install[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_3]
+r_prepare_2 = r_prepare[!1 = @sid_5]
+r_resp_2 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tid_pd = tidMain[],!1 = @sid_6]
+SK_EU_PROFILE_2 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tid_pd = tidMain[],!1 = @sid_6]
+@occ42_1 = @occ42[install_mac = mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)),CT_INSTALL = kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),iccid = iccid_2,tid4 = tidMain[],resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_2),tid3 = tidMain[],!1 = @sid]
+r_prepare_3 = r_prepare[!1 = @sid_7]
+r_resp_3 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tid_pd = tidMain[],!1 = @sid_8]
+SK_EU_PROFILE_3 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tid_pd = tidMain[],!1 = @sid_8]
+@occ42_2 = @occ42[install_mac = mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)),CT_INSTALL = kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),iccid = iccid_2,tid4 = tidMain[],resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_3),tid3 = tidMain[],!1 = @sid_1]
+@occ73_2 = @occ73_1[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_3]
+
+Derivation:
+Abbreviations:
+r_prepare_1 = r_prepare[!1 = @sid]
+r_resp_1 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+SK_EU_PROFILE_1 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+r_profile_auth_1 = r_profile_auth[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_2]
+r_profile_1 = r_profile[resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_1),tid3 = tidMain[],!1 = @sid_2]
+iccid_2 = iccid_1[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+r_install_1 = r_install[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+r_prepare_2 = r_prepare[!1 = @sid_3]
+r_resp_2 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tid_pd = tidMain[],!1 = @sid_4]
+SK_EU_PROFILE_2 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tid_pd = tidMain[],!1 = @sid_4]
+@occ42_1 = @occ42[install_mac = mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)),CT_INSTALL = kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),iccid = iccid_2,tid4 = tidMain[],resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_2),tid3 = tidMain[],!1 = @sid_5]
+r_prepare_3 = r_prepare[!1 = @sid_6]
+r_resp_3 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tid_pd = tidMain[],!1 = @sid_7]
+SK_EU_PROFILE_3 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tid_pd = tidMain[],!1 = @sid_7]
+@occ42_2 = @occ42[install_mac = mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)),CT_INSTALL = kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),iccid = iccid_2,tid4 = tidMain[],resp_mac = mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))),CT_RESP = kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),PK_EU_PROFILE = kem_pk(SK_EU_PROFILE_3),tid3 = tidMain[],!1 = @sid_8]
+@occ73_2 = @occ73_1[profile_auth_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),CT_PROFILE_AUTH_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),profile_mac_in = mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),encrypted_prof = senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),CT_PROFILE_1 = kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),tid_bpp = tidMain[],prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tid_pd = tidMain[],!1 = @sid_1]
+r_prepare_4 = r_prepare[!1 = @sid_9]
+r_resp_4 = r_resp[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tid_pd = tidMain[],!1 = @sid_10]
+SK_EU_PROFILE_4 = SK_EU_PROFILE[prepare_mac_1 = mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])),CT_PREPARE_1 = kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tid_pd = tidMain[],!1 = @sid_10]
+r_prepare_5 = r_prepare[!1 = @sid_11]
+r_prepare_6 = r_prepare[!1 = @sid_12]
+
+1. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])))).
+
+2. By 1, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 3-proj-3-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))).
+
+3. By 1, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 2-proj-3-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3)).
+
+4. By 3, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3).
+Using the function 2-proj-kem_enc the attacker may obtain r_prepare_3.
+attacker(r_prepare_3).
+
+5. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_6),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_6),tidMain[]),msg_prepare(tidMain[])))).
+
+6. By 5, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_6),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 2-proj-3-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6)).
+
+7. By 6, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_6).
+Using the function 1-proj-kem_enc the attacker may obtain kem_pk(SK_EUICC_KEM[]).
+attacker(kem_pk(SK_EUICC_KEM[])).
+
+8. By 7, the attacker may know kem_pk(SK_EUICC_KEM[]).
+By 4, the attacker may know r_prepare_3.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3)).
+
+9. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_5),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_5),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_5),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_5),tidMain[]),msg_prepare(tidMain[])))).
+
+10. By 9, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_5),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_5),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 1-proj-3-tuple the attacker may obtain tidMain[].
+attacker(tidMain[]).
+
+11. By 10, the attacker may know tidMain[].
+By 8, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3).
+By 2, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])).
+Using the function 3-tuple the attacker may obtain (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))).
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[])))).
+
+12. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_3),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_3),tidMain[]),msg_prepare(tidMain[]))) that the attacker may have by 11 may be received at input {47}.
+So the message (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))) may be sent to the attacker at output {60}.
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))))).
+
+13. By 12, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))).
+Using the function 4-proj-4-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))).
+
+14. By 12, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))).
+Using the function 3-proj-4-tuple the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3)).
+
+15. By 14, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3).
+Using the function 2-proj-kem_enc the attacker may obtain r_resp_3.
+attacker(r_resp_3).
+
+16. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])))).
+
+17. By 16, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 3-proj-3-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))).
+
+18. By 16, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 2-proj-3-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4)).
+
+19. By 18, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4).
+Using the function 2-proj-kem_enc the attacker may obtain r_prepare_4.
+attacker(r_prepare_4).
+
+20. By 7, the attacker may know kem_pk(SK_EUICC_KEM[]).
+By 19, the attacker may know r_prepare_4.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4)).
+
+21. By 10, the attacker may know tidMain[].
+By 20, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4).
+By 17, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])).
+Using the function 3-tuple the attacker may obtain (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))).
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[])))).
+
+22. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_4),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_4),tidMain[]),msg_prepare(tidMain[]))) that the attacker may have by 21 may be received at input {47}.
+So the message (tidMain[],kem_pk(SK_EU_PROFILE_4),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_4),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_4)))) may be sent to the attacker at output {60}.
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_4),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_4),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_4))))).
+
+23. By 22, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_4),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_4),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_4)))).
+Using the function 3-proj-4-tuple the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4)).
+
+24. By 23, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_4).
+Using the function 1-proj-kem_enc the attacker may obtain kem_pk(SK_SMDP_KEM).
+attacker(kem_pk(SK_SMDP_KEM)).
+
+25. By 24, the attacker may know kem_pk(SK_SMDP_KEM).
+By 15, the attacker may know r_resp_3.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3)).
+
+26. By 12, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))).
+Using the function 2-proj-4-tuple the attacker may obtain kem_pk(SK_EU_PROFILE_3).
+attacker(kem_pk(SK_EU_PROFILE_3)).
+
+27. By 10, the attacker may know tidMain[].
+By 26, the attacker may know kem_pk(SK_EU_PROFILE_3).
+By 25, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3).
+By 13, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))).
+Using the function 4-tuple the attacker may obtain (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))).
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3))))).
+
+28. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])))).
+
+29. By 28, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 3-proj-3-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))).
+
+30. By 28, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 2-proj-3-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1)).
+
+31. By 30, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1).
+Using the function 2-proj-kem_enc the attacker may obtain r_prepare_1.
+attacker(r_prepare_1).
+
+32. By 7, the attacker may know kem_pk(SK_EUICC_KEM[]).
+By 31, the attacker may know r_prepare_1.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1)).
+
+33. By 10, the attacker may know tidMain[].
+By 32, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1).
+By 29, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])).
+Using the function 3-tuple the attacker may obtain (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))).
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[])))).
+
+34. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))) that the attacker may have by 33 may be received at input {47}.
+So the message (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))) may be sent to the attacker at output {60}.
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))))).
+
+35. By 34, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))).
+Using the function 4-proj-4-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))).
+
+36. By 34, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))).
+Using the function 3-proj-4-tuple the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1)).
+
+37. By 36, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1).
+Using the function 2-proj-kem_enc the attacker may obtain r_resp_1.
+attacker(r_resp_1).
+
+38. By 24, the attacker may know kem_pk(SK_SMDP_KEM).
+By 37, the attacker may know r_resp_1.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1)).
+
+39. By 34, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))).
+Using the function 2-proj-4-tuple the attacker may obtain kem_pk(SK_EU_PROFILE_1).
+attacker(kem_pk(SK_EU_PROFILE_1)).
+
+40. By 10, the attacker may know tidMain[].
+By 39, the attacker may know kem_pk(SK_EU_PROFILE_1).
+By 38, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1).
+By 35, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))).
+Using the function 4-tuple the attacker may obtain (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))).
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1))))).
+
+41. The message (tidMain[],kem_pk(SK_EU_PROFILE_1),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_1),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_1),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_1)))) that the attacker may have by 40 may be received at input {17}.
+So the message (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))) may be sent to the attacker at output {35}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))))).
+
+42. By 41, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+Using the function 6-proj-6-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+
+43. By 41, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+Using the function 5-proj-6-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1)).
+
+44. By 43, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1).
+Using the function 2-proj-kem_enc the attacker may obtain r_profile_auth_1.
+attacker(r_profile_auth_1).
+
+45. By 7, the attacker may know kem_pk(SK_EUICC_KEM[]).
+By 44, the attacker may know r_profile_auth_1.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1)).
+
+46. By 41, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+Using the function 4-proj-6-tuple the attacker may obtain mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))).
+attacker(mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+
+47. By 41, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+Using the function 3-proj-6-tuple the attacker may obtain senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))).
+attacker(senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))).
+
+48. By 41, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+Using the function 2-proj-6-tuple the attacker may obtain kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1).
+attacker(kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1)).
+
+49. By 48, the attacker may know kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1).
+Using the function 2-proj-kem_enc the attacker may obtain r_profile_1.
+attacker(r_profile_1).
+
+50. By 39, the attacker may know kem_pk(SK_EU_PROFILE_1).
+By 49, the attacker may know r_profile_1.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1).
+attacker(kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1)).
+
+51. By 10, the attacker may know tidMain[].
+By 50, the attacker may know kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1).
+By 47, the attacker may know senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))).
+By 46, the attacker may know mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))).
+By 45, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1).
+By 42, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))).
+Using the function 6-tuple the attacker may obtain (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))).
+attacker((tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))))).
+
+52. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_1),tidMain[]),msg_prepare(tidMain[]))) that the attacker may have by 33 may be received at input {47}.
+The message (tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))),mac(kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1))))),kem_enc(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_profile_auth_1),tidMain[]),msg_profile(tidMain[],kem_enc(kem_pk(SK_EU_PROFILE_1),r_profile_1),senc(secret_profile[],kdf_profile(kem_ss(kem_pk(SK_EU_PROFILE_1),r_profile_1)))))) that the attacker may have by 51 may be received at input {61}.
+The event EUICC_PROFILE_INSTALLED(devMain[],tidMain[],secret_profile[],iccid_2) (with occurrence name @occ73_2) may be executed at {73}.
+So the message (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))) may be sent to the attacker at output {79}.
+attacker((tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)))).
+
+53. By 52, the attacker may know (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))).
+Using the function 4-proj-4-tuple the attacker may obtain mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)).
+attacker(mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))).
+
+54. By 52, the attacker may know (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))).
+Using the function 3-proj-4-tuple the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_install_1).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_install_1)).
+
+55. By 54, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_install_1).
+Using the function 2-proj-kem_enc the attacker may obtain r_install_1.
+attacker(r_install_1).
+
+56. By 24, the attacker may know kem_pk(SK_SMDP_KEM).
+By 55, the attacker may know r_install_1.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_install_1).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_install_1)).
+
+57. By 52, the attacker may know (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))).
+Using the function 2-proj-4-tuple the attacker may obtain iccid_2.
+attacker(iccid_2).
+
+58. By 10, the attacker may know tidMain[].
+By 57, the attacker may know iccid_2.
+By 56, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_install_1).
+By 53, the attacker may know mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)).
+Using the function 4-tuple the attacker may obtain (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))).
+attacker((tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2)))).
+
+59. The message (tidMain[],kem_pk(SK_EU_PROFILE_3),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_3),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_3),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_3)))) that the attacker may have by 27 may be received at input {17}.
+The message (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))) that the attacker may have by 58 may be received at input {36}.
+So event SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2) may be executed at {42} in session @sid_8.
+inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2).
+
+60. By 59, inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2).
+The goal is reached, represented in the following fact:
+inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2).
+
+61. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))) may be sent to the attacker at output {16}.
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])))).
+
+62. By 61, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 3-proj-3-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))).
+
+63. By 61, the attacker may know (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))).
+Using the function 2-proj-3-tuple the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2)).
+
+64. By 63, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2).
+Using the function 2-proj-kem_enc the attacker may obtain r_prepare_2.
+attacker(r_prepare_2).
+
+65. By 7, the attacker may know kem_pk(SK_EUICC_KEM[]).
+By 64, the attacker may know r_prepare_2.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2).
+attacker(kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2)).
+
+66. By 10, the attacker may know tidMain[].
+By 65, the attacker may know kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2).
+By 62, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])).
+Using the function 3-tuple the attacker may obtain (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))).
+attacker((tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[])))).
+
+67. The message (tidMain[],kem_enc(kem_pk(SK_EUICC_KEM[]),r_prepare_2),mac(kdf_bind(kem_ss(kem_pk(SK_EUICC_KEM[]),r_prepare_2),tidMain[]),msg_prepare(tidMain[]))) that the attacker may have by 66 may be received at input {47}.
+So the message (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))) may be sent to the attacker at output {60}.
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))))).
+
+68. By 67, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))).
+Using the function 4-proj-4-tuple the attacker may obtain mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))).
+attacker(mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))).
+
+69. By 67, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))).
+Using the function 3-proj-4-tuple the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2)).
+
+70. By 69, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2).
+Using the function 2-proj-kem_enc the attacker may obtain r_resp_2.
+attacker(r_resp_2).
+
+71. By 24, the attacker may know kem_pk(SK_SMDP_KEM).
+By 70, the attacker may know r_resp_2.
+Using the function kem_enc the attacker may obtain kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2).
+attacker(kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2)).
+
+72. By 67, the attacker may know (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))).
+Using the function 2-proj-4-tuple the attacker may obtain kem_pk(SK_EU_PROFILE_2).
+attacker(kem_pk(SK_EU_PROFILE_2)).
+
+73. By 10, the attacker may know tidMain[].
+By 72, the attacker may know kem_pk(SK_EU_PROFILE_2).
+By 71, the attacker may know kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2).
+By 68, the attacker may know mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))).
+Using the function 4-tuple the attacker may obtain (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))).
+attacker((tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2))))).
+
+74. The message (tidMain[],kem_pk(SK_EU_PROFILE_2),kem_enc(kem_pk(SK_SMDP_KEM),r_resp_2),mac(kdf_bind(kem_ss(kem_pk(SK_SMDP_KEM),r_resp_2),tidMain[]),msg_response(tidMain[],kem_pk(SK_EU_PROFILE_2)))) that the attacker may have by 73 may be received at input {17}.
+The message (tidMain[],iccid_2,kem_enc(kem_pk(SK_SMDP_KEM),r_install_1),mac(kdf_bind_install(kem_ss(kem_pk(SK_SMDP_KEM),r_install_1),tidMain[],iccid_2),msg_install(tidMain[],iccid_2))) that the attacker may have by 58 may be received at input {36}.
+So event SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2) may be executed at {42} in session @sid_5.
+inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1).
+
+75. By 74, inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1).
+The goal is reached, represented in the following fact:
+inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1).
+
+76. By 75, inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1).
+By 60, inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2).
+We have @occ42_1 ≠ @occ42_2.
+The goals for injectivity are reached, combined in the following fact:
+inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_1) && inj-event(SMDP_INSTALL_CONFIRMED(devMain[],tidMain[],iccid_2),@occ42_2).
+
+
+RESULT inj-event(SMDP_INSTALL_CONFIRMED(dev_2,tid_2,iccid_2)) ==> inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) cannot be proved.
+RESULT (but event(SMDP_INSTALL_CONFIRMED(dev_2,tid_2,iccid_2)) ==> event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) is true.)
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(secret_profile[]) is true.
+
+Query not attacker_p1(secret_profile[]) is true.
+
+Query inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) ==> inj-event(SMDP_BOUND_PROFILE(dev_2,tid_2,profile_2)) is true.
+
+Query inj-event(SMDP_INSTALL_CONFIRMED(dev_2,tid_2,iccid_2)) ==> inj-event(EUICC_PROFILE_INSTALLED(dev_2,tid_2,profile_2,iccid_2)) cannot be proved.
+
+--------------------------------------------------------------
