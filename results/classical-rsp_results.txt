@@ -1,0 +1,884 @@
+Linear part:
+dh(x,dh_pk(y)) = dh(y,dh_pk(x))
+Completing equations...
+Completed equations:
+dh(x,dh_pk(y)) = dh(y,dh_pk(x))
+Convergent part: No equation.
+Process 0 (that is, the initial process):
+{1}let PK_CI: SigPk_t = sig_pk(SK_CI) in
+{2}let PK_DPauth: SigPk_t = sig_pk(SK_DPauth) in
+{3}out(c, PK_CI);
+{4}out(c, PK_DPauth);
+{5}new devMain: Id_t;
+{6}new SK_EUICC: SigKey_t;
+{7}let PK_EUICC: SigPk_t = sig_pk(SK_EUICC) in
+{8}out(c, PK_EUICC);
+(
+    {9}!
+    {10}let dev: Id_t = devMain in
+    {11}let profile: Profile_t = secret_profile in
+    {12}let PK_DPauth_1: SigPk_t = sig_pk(SK_DPauth) in
+    {13}let role: Tag_t = tag_dp in
+    {14}let CERT_DPauth: Cert_t = signcert(dev,PK_DPauth_1,role,SK_CI) in
+    {15}in(ES9, (=dev,euiccChallenge: Nonce_t));
+    {16}new tid: Tid_t;
+    {17}new serverChallenge: Nonce_t;
+    {18}event SMDP_BEGIN(dev,tid);
+    {19}let srv_payload: bitstring = mk_serverSigned1(tid,euiccChallenge,serverChallenge) in
+    {20}let serverSig1: Sig_t = sign(srv_payload,SK_DPauth) in
+    {21}event SMDP_SENT_SRV(dev,tid,srv_payload);
+    {22}out(ES9, (tid,serverSig1,serverChallenge,CERT_DPauth));
+    {23}in(ES9, (=tid,euiccSig1: Sig_t,CERT_EUICC: Cert_t));
+    {24}let (id_eu: Id_t,PK_EUICC_in: SigPk_t,role_eu: Tag_t) = checkcert(CERT_EUICC,PK_CI) in
+    {25}let cli_payload: bitstring = mk_euiccSigned1(tid,serverChallenge) in
+    {26}let decoded_cli: bitstring = checksign(euiccSig1,PK_EUICC_in) in
+    {27}if (decoded_cli = cli_payload) then
+    {28}event SMDP_VERIFIED_CLI(dev,tid,cli_payload);
+    {29}let smdp2_payload: bitstring = mk_smdpSigned2(tid) in
+    {30}let smdpSig2_pd: Sig_t = sign(smdp2_payload,SK_DPauth) in
+    {31}out(ES9, (tid,smdpSig2_pd));
+    {32}in(ES9, (=tid,pk_eu_eph: DHPk_t,euiccSig2: Sig_t));
+    {33}new sk_dp_eph: DHKey_t;
+    {34}let pk_dp_eph: DHPk_t = dh_pk(sk_dp_eph) in
+    {35}let shs: SharedSecret_t = dh(sk_dp_eph,pk_eu_eph) in
+    {36}let k_enc: SymKey_t = kdf_enc(shs) in
+    {37}let k_mac: SymKey_t = kdf_mac(shs) in
+    {38}event SMDP_KEY(dev,tid,k_enc);
+    {39}let encrypted_profile: bitstring = senc(profile,k_enc) in
+    {40}let bpp_body: bitstring = mk_bpp_body(tid,pk_eu_eph,pk_dp_eph,encrypted_profile) in
+    {41}let bpp_mac: bitstring = hmac(k_mac,bpp_body) in
+    {42}let smdp3_payload: bitstring = mk_smdpSigned3(tid,pk_eu_eph) in
+    {43}let smdpSig3: Sig_t = sign(smdp3_payload,SK_DPauth) in
+    {44}event SMDP_SENT_PROFILE(dev,tid,profile);
+    {45}out(ES9, (tid,smdpSig3,pk_dp_eph,bpp_body,bpp_mac))
+) | (
+    {46}!
+    {47}let dev_1: Id_t = devMain in
+    {48}let SK_EUICC_1: SigKey_t = SK_EUICC in
+    {49}let PK_EUICC_1: SigPk_t = sig_pk(SK_EUICC_1) in
+    {50}let role_1: Tag_t = tag_eu in
+    {51}let CERT_EUICC_1: Cert_t = signcert(dev_1,PK_EUICC_1,role_1,SK_CI) in
+    {52}out(c, CERT_EUICC_1);
+    {53}new euiccChallenge_1: Nonce_t;
+    {54}out(ES9, (dev_1,euiccChallenge_1));
+    {55}in(ES9, (tid_1: Tid_t,serverSig1_1: Sig_t,serverChallenge_1: Nonce_t,CERT_DPauth_1: Cert_t));
+    {56}let (id_dp: Id_t,PK_DPauth_2: SigPk_t,role_dp: Tag_t) = checkcert(CERT_DPauth_1,PK_CI) in
+    {57}let srv_payload_1: bitstring = mk_serverSigned1(tid_1,euiccChallenge_1,serverChallenge_1) in
+    {58}let decoded_srv: bitstring = checksign(serverSig1_1,PK_DPauth_2) in
+    {59}if (decoded_srv = srv_payload_1) then
+    {60}event EUICC_VERIFIED_SRV(dev_1,tid_1,srv_payload_1);
+    {61}let cli_payload_1: bitstring = mk_euiccSigned1(tid_1,serverChallenge_1) in
+    {62}let euiccSig1_1: Sig_t = sign(cli_payload_1,SK_EUICC_1) in
+    {63}event EUICC_SENT_CLI(dev_1,tid_1,cli_payload_1);
+    {64}out(ES9, (tid_1,euiccSig1_1,CERT_EUICC_1));
+    {65}in(ES9, (=tid_1,smdpSig2_pd_1: Sig_t));
+    {66}let smdp2_payload_pd: bitstring = mk_smdpSigned2(tid_1) in
+    {67}let decoded_pd: bitstring = checksign(smdpSig2_pd_1,PK_DPauth_2) in
+    {68}if (decoded_pd = smdp2_payload_pd) then
+    {69}new sk_eu_eph: DHKey_t;
+    {70}let pk_eu_eph_1: DHPk_t = dh_pk(sk_eu_eph) in
+    {71}let euicc2_payload: bitstring = mk_euiccSigned2(tid_1,pk_eu_eph_1) in
+    {72}let euiccSig2_1: Sig_t = sign(euicc2_payload,SK_EUICC_1) in
+    {73}out(ES9, (tid_1,pk_eu_eph_1,euiccSig2_1));
+    {74}in(ES9, (=tid_1,smdpSig3_1: Sig_t,pk_dp_eph_1: DHPk_t,bpp_body_1: bitstring,bpp_mac_1: bitstring));
+    {75}let smdp3_payload_1: bitstring = mk_smdpSigned3(tid_1,pk_eu_eph_1) in
+    {76}let decoded_smdp3: bitstring = checksign(smdpSig3_1,PK_DPauth_2) in
+    {77}if (decoded_smdp3 = smdp3_payload_1) then
+    {78}let shs_1: SharedSecret_t = dh(sk_eu_eph,pk_dp_eph_1) in
+    {79}let k_enc_1: SymKey_t = kdf_enc(shs_1) in
+    {80}let k_mac_1: SymKey_t = kdf_mac(shs_1) in
+    {81}event EUICC_KEY(dev_1,tid_1,k_enc_1);
+    {82}let mk_bpp_body(=tid_1,=pk_eu_eph_1,=pk_dp_eph_1,encrypted_profile_1: bitstring) = bpp_body_1 in
+    {83}if (bpp_mac_1 = hmac(k_mac_1,bpp_body_1)) then
+    {84}let profile_1: Profile_t = sdec(encrypted_profile_1,k_enc_1) in
+    {85}event EUICC_INSTALLED_PROFILE(dev_1,tid_1,profile_1)
+) | (
+    {86}phase 1;
+    {87}out(c, SK_DPauth);
+    {88}out(c, SK_EUICC)
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}let PK_CI: SigPk_t = sig_pk(SK_CI) in
+{3}out(c, PK_CI);
+{2}let PK_DPauth: SigPk_t = sig_pk(SK_DPauth) in
+{4}out(c, PK_DPauth);
+{5}new devMain: Id_t;
+{6}new SK_EUICC: SigKey_t;
+{7}let PK_EUICC: SigPk_t = sig_pk(SK_EUICC) in
+{8}out(c, PK_EUICC);
+(
+    {9}!
+    {10}let dev: Id_t = devMain in
+    {15}in(ES9, (=dev,euiccChallenge: Nonce_t));
+    {16}new tid: Tid_t;
+    {17}new serverChallenge: Nonce_t;
+    {18}event SMDP_BEGIN(dev,tid);
+    {19}let srv_payload: bitstring = mk_serverSigned1(tid,euiccChallenge,serverChallenge) in
+    {21}event SMDP_SENT_SRV(dev,tid,srv_payload);
+    {20}let serverSig1: Sig_t = sign(srv_payload,SK_DPauth) in
+    {13}let role: Tag_t = tag_dp in
+    {12}let PK_DPauth_1: SigPk_t = sig_pk(SK_DPauth) in
+    {14}let CERT_DPauth: Cert_t = signcert(dev,PK_DPauth_1,role,SK_CI) in
+    {22}out(ES9, (tid,serverSig1,serverChallenge,CERT_DPauth));
+    {23}in(ES9, (=tid,euiccSig1: Sig_t,CERT_EUICC: Cert_t));
+    {24}let (id_eu: Id_t,PK_EUICC_in: SigPk_t,role_eu: Tag_t) = checkcert(CERT_EUICC,PK_CI) in
+    {26}let decoded_cli: bitstring = checksign(euiccSig1,PK_EUICC_in) in
+    {25}let cli_payload: bitstring = mk_euiccSigned1(tid,serverChallenge) in
+    {27}if (decoded_cli = cli_payload) then
+    {28}event SMDP_VERIFIED_CLI(dev,tid,cli_payload);
+    {29}let smdp2_payload: bitstring = mk_smdpSigned2(tid) in
+    {30}let smdpSig2_pd: Sig_t = sign(smdp2_payload,SK_DPauth) in
+    {31}out(ES9, (tid,smdpSig2_pd));
+    {32}in(ES9, (=tid,pk_eu_eph: DHPk_t,euiccSig2: Sig_t));
+    {33}new sk_dp_eph: DHKey_t;
+    {35}let shs: SharedSecret_t = dh(sk_dp_eph,pk_eu_eph) in
+    {36}let k_enc: SymKey_t = kdf_enc(shs) in
+    {38}event SMDP_KEY(dev,tid,k_enc);
+    {11}let profile: Profile_t = secret_profile in
+    {44}event SMDP_SENT_PROFILE(dev,tid,profile);
+    {42}let smdp3_payload: bitstring = mk_smdpSigned3(tid,pk_eu_eph) in
+    {43}let smdpSig3: Sig_t = sign(smdp3_payload,SK_DPauth) in
+    {39}let encrypted_profile: bitstring = senc(profile,k_enc) in
+    {34}let pk_dp_eph: DHPk_t = dh_pk(sk_dp_eph) in
+    {40}let bpp_body: bitstring = mk_bpp_body(tid,pk_eu_eph,pk_dp_eph,encrypted_profile) in
+    {37}let k_mac: SymKey_t = kdf_mac(shs) in
+    {41}let bpp_mac: bitstring = hmac(k_mac,bpp_body) in
+    {45}out(ES9, (tid,smdpSig3,pk_dp_eph,bpp_body,bpp_mac))
+) | (
+    {46}!
+    {50}let role_1: Tag_t = tag_eu in
+    {48}let SK_EUICC_1: SigKey_t = SK_EUICC in
+    {49}let PK_EUICC_1: SigPk_t = sig_pk(SK_EUICC_1) in
+    {47}let dev_1: Id_t = devMain in
+    {51}let CERT_EUICC_1: Cert_t = signcert(dev_1,PK_EUICC_1,role_1,SK_CI) in
+    {52}out(c, CERT_EUICC_1);
+    {53}new euiccChallenge_1: Nonce_t;
+    {54}out(ES9, (dev_1,euiccChallenge_1));
+    {55}in(ES9, (tid_1: Tid_t,serverSig1_1: Sig_t,serverChallenge_1: Nonce_t,CERT_DPauth_1: Cert_t));
+    {56}let (id_dp: Id_t,PK_DPauth_2: SigPk_t,role_dp: Tag_t) = checkcert(CERT_DPauth_1,PK_CI) in
+    {58}let decoded_srv: bitstring = checksign(serverSig1_1,PK_DPauth_2) in
+    {57}let srv_payload_1: bitstring = mk_serverSigned1(tid_1,euiccChallenge_1,serverChallenge_1) in
+    {59}if (decoded_srv = srv_payload_1) then
+    {60}event EUICC_VERIFIED_SRV(dev_1,tid_1,srv_payload_1);
+    {61}let cli_payload_1: bitstring = mk_euiccSigned1(tid_1,serverChallenge_1) in
+    {63}event EUICC_SENT_CLI(dev_1,tid_1,cli_payload_1);
+    {62}let euiccSig1_1: Sig_t = sign(cli_payload_1,SK_EUICC_1) in
+    {64}out(ES9, (tid_1,euiccSig1_1,CERT_EUICC_1));
+    {65}in(ES9, (=tid_1,smdpSig2_pd_1: Sig_t));
+    {67}let decoded_pd: bitstring = checksign(smdpSig2_pd_1,PK_DPauth_2) in
+    {66}let smdp2_payload_pd: bitstring = mk_smdpSigned2(tid_1) in
+    {68}if (decoded_pd = smdp2_payload_pd) then
+    {69}new sk_eu_eph: DHKey_t;
+    {70}let pk_eu_eph_1: DHPk_t = dh_pk(sk_eu_eph) in
+    {71}let euicc2_payload: bitstring = mk_euiccSigned2(tid_1,pk_eu_eph_1) in
+    {72}let euiccSig2_1: Sig_t = sign(euicc2_payload,SK_EUICC_1) in
+    {73}out(ES9, (tid_1,pk_eu_eph_1,euiccSig2_1));
+    {74}in(ES9, (=tid_1,smdpSig3_1: Sig_t,pk_dp_eph_1: DHPk_t,bpp_body_1: bitstring,bpp_mac_1: bitstring));
+    {76}let decoded_smdp3: bitstring = checksign(smdpSig3_1,PK_DPauth_2) in
+    {75}let smdp3_payload_1: bitstring = mk_smdpSigned3(tid_1,pk_eu_eph_1) in
+    {77}if (decoded_smdp3 = smdp3_payload_1) then
+    {78}let shs_1: SharedSecret_t = dh(sk_eu_eph,pk_dp_eph_1) in
+    {79}let k_enc_1: SymKey_t = kdf_enc(shs_1) in
+    {81}event EUICC_KEY(dev_1,tid_1,k_enc_1);
+    {82}let mk_bpp_body(=tid_1,=pk_eu_eph_1,=pk_dp_eph_1,encrypted_profile_1: bitstring) = bpp_body_1 in
+    {80}let k_mac_1: SymKey_t = kdf_mac(shs_1) in
+    {83}if (bpp_mac_1 = hmac(k_mac_1,bpp_body_1)) then
+    {84}let profile_1: Profile_t = sdec(encrypted_profile_1,k_enc_1) in
+    {85}event EUICC_INSTALLED_PROFILE(dev_1,tid_1,profile_1)
+) | (
+    {86}phase 1;
+    {87}out(c, SK_DPauth);
+    {88}out(c, SK_EUICC)
+)
+
+-- Query not attacker_p1(secret_profile[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 166 rules (74 with conclusion selected). Queue: 18 rules.
+400 rules inserted. Base: 255 rules (86 with conclusion selected). Queue: 6 rules.
+Starting query not attacker_p1(secret_profile[])
+goal reachable: attacker_p1(secret_profile[])
+
+Derivation:
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_dp_eph_1 = sk_dp_eph[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(x),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+tid_3 = tid[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+serverChallenge_3 = serverChallenge[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+euiccChallenge_4 = euiccChallenge_1[!1 = @sid_3]
+
+1. The message (devMain[],euiccChallenge_2) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_2)).
+
+2. By 1, the attacker may know (devMain[],euiccChallenge_2).
+Using the function 2-proj-2-tuple the attacker may obtain euiccChallenge_2.
+attacker(euiccChallenge_2).
+
+3. The message (devMain[],euiccChallenge_4) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_4)).
+
+4. By 3, the attacker may know (devMain[],euiccChallenge_4).
+Using the function 1-proj-2-tuple the attacker may obtain devMain[].
+attacker(devMain[]).
+
+5. By 4, the attacker may know devMain[].
+By 2, the attacker may know euiccChallenge_2.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_2).
+attacker((devMain[],euiccChallenge_2)).
+
+6. The message signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI) may be sent to the attacker at output {52}.
+attacker(signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+
+7. The attacker has some term euiccChallenge_3.
+attacker(euiccChallenge_3).
+
+8. By 4, the attacker may know devMain[].
+By 7, the attacker may know euiccChallenge_3.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_3).
+attacker((devMain[],euiccChallenge_3)).
+
+9. The message (devMain[],euiccChallenge_3) that the attacker may have by 8 may be received at input {15}.
+So the message (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+10. By 9, the attacker may know (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 4-proj-4-tuple the attacker may obtain signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+attacker(signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+
+11. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+So the message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+12. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 3-proj-4-tuple the attacker may obtain serverChallenge_2.
+attacker(serverChallenge_2).
+
+13. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 2-proj-4-tuple the attacker may obtain sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+attacker(sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth)).
+
+14. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 1-proj-4-tuple the attacker may obtain tid_2.
+attacker(tid_2).
+
+15. By 14, the attacker may know tid_2.
+By 13, the attacker may know sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+By 12, the attacker may know serverChallenge_2.
+By 10, the attacker may know signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+Using the function 4-tuple the attacker may obtain (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+16. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 15 may be received at input {55}.
+So the message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) may be sent to the attacker at output {64}.
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+17. By 16, the attacker may know (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+Using the function 2-proj-3-tuple the attacker may obtain sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+attacker(sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[])).
+
+18. By 14, the attacker may know tid_2.
+By 17, the attacker may know sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+By 6, the attacker may know signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI).
+Using the function 3-tuple the attacker may obtain (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+19. The attacker has some term euiccSig2_2.
+attacker(euiccSig2_2).
+
+20. The attacker has some term x.
+attacker(x).
+
+21. By 20, the attacker may know x.
+Using the function dh_pk the attacker may obtain dh_pk(x).
+attacker(dh_pk(x)).
+
+22. By 14, the attacker may know tid_2.
+By 21, the attacker may know dh_pk(x).
+By 19, the attacker may know euiccSig2_2.
+Using the function 3-tuple the attacker may obtain (tid_2,dh_pk(x),euiccSig2_2).
+attacker((tid_2,dh_pk(x),euiccSig2_2)).
+
+23. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+The message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) that the attacker may have by 18 may be received at input {23}.
+The message (tid_2,dh_pk(x),euiccSig2_2) that the attacker may have by 22 may be received at input {32}.
+So the message (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))) may be sent to the attacker at output {45}.
+attacker((tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))))))).
+
+24. By 23, the attacker may know (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))).
+Using the function 3-proj-5-tuple the attacker may obtain dh_pk(sk_dp_eph_1).
+attacker(dh_pk(sk_dp_eph_1)).
+
+25. By 20, the attacker may know x.
+By 24, the attacker may know dh_pk(sk_dp_eph_1).
+Using the function dh the attacker may obtain dh(sk_dp_eph_1,dh_pk(x)).
+attacker(dh(sk_dp_eph_1,dh_pk(x))).
+
+26. By 25, the attacker may know dh(sk_dp_eph_1,dh_pk(x)).
+Using the function kdf_enc the attacker may obtain kdf_enc(dh(sk_dp_eph_1,dh_pk(x))).
+attacker(kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+
+27. By 23, the attacker may know (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))).
+Using the function 4-proj-5-tuple the attacker may obtain mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+attacker(mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))))).
+
+28. By 27, the attacker may know mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+Using the function 4-proj-mk_bpp_body the attacker may obtain senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+attacker(senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+
+29. By 28, the attacker may know senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+By 26, the attacker may know kdf_enc(dh(sk_dp_eph_1,dh_pk(x))).
+Using the function sdec the attacker may obtain secret_profile[].
+attacker(secret_profile[]).
+
+30. By 29, the attacker may know secret_profile[].
+So the attacker may know secret_profile[] in phase 1.
+attacker_p1(secret_profile[]).
+
+31. By 30, attacker_p1(secret_profile[]).
+The goal is reached, represented in the following fact:
+attacker_p1(secret_profile[]).
+
+
+RESULT not attacker_p1(secret_profile[]) cannot be proved.
+-- Query inj-event(EUICC_VERIFIED_SRV(dev_2,tid_2,t)) ==> inj-event(SMDP_SENT_SRV(dev_2,tid_2,t)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 170 rules (74 with conclusion selected). Queue: 24 rules.
+400 rules inserted. Base: 265 rules (84 with conclusion selected). Queue: 10 rules.
+Starting query inj-event(EUICC_VERIFIED_SRV(dev_2,tid_2,t)) ==> inj-event(SMDP_SENT_SRV(dev_2,tid_2,t))
+goal reachable: b-inj-event(SMDP_SENT_SRV(devMain[],tid_2,mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2)),@occ21_1) && b-inj-event(SMDP_SENT_SRV(devMain[],tid_3,mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3)),@occ21_2) && attacker(euiccChallenge_3) -> inj-event(EUICC_VERIFIED_SRV(devMain[],tid_2,mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2)),@occ60_1)
+The 1st, 2nd hypotheses occur strictly before the conclusion.
+The 3rd hypothesis occurs before the conclusion.
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ60_1 = @occ60[CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+@occ21_1 = @occ21[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+tid_3 = tid[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+serverChallenge_3 = serverChallenge[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+@occ21_2 = @occ21[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+RESULT inj-event(EUICC_VERIFIED_SRV(dev_2,tid_2,t)) ==> inj-event(SMDP_SENT_SRV(dev_2,tid_2,t)) is true.
+-- Query inj-event(SMDP_VERIFIED_CLI(dev_2,tid_2,t)) ==> inj-event(EUICC_SENT_CLI(dev_2,tid_2,t)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 168 rules (74 with conclusion selected). Queue: 20 rules.
+400 rules inserted. Base: 255 rules (85 with conclusion selected). Queue: 9 rules.
+Starting query inj-event(SMDP_VERIFIED_CLI(dev_2,tid_2,t)) ==> inj-event(EUICC_SENT_CLI(dev_2,tid_2,t))
+goal reachable: b-inj-event(EUICC_SENT_CLI(devMain[],tid_2,mk_euiccSigned1(tid_2,serverChallenge_2)),@occ63_1) -> inj-event(SMDP_VERIFIED_CLI(devMain[],tid_2,mk_euiccSigned1(tid_2,serverChallenge_2)),@occ28_1)
+The hypothesis occurs strictly before the conclusion.
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ28_1 = @occ28[CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ63_1 = @occ63[CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+RESULT inj-event(SMDP_VERIFIED_CLI(dev_2,tid_2,t)) ==> inj-event(EUICC_SENT_CLI(dev_2,tid_2,t)) is true.
+-- Query inj-event(SMDP_KEY(dev_2,tid_2,k)) ==> inj-event(EUICC_KEY(dev_2,tid_2,k)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 173 rules (74 with conclusion selected). Queue: 23 rules.
+400 rules inserted. Base: 268 rules (85 with conclusion selected). Queue: 18 rules.
+Starting query inj-event(SMDP_KEY(dev_2,tid_2,k)) ==> inj-event(EUICC_KEY(dev_2,tid_2,k))
+goal reachable: attacker(y) && attacker(euiccSig2_2) -> inj-event(SMDP_KEY(devMain[],tid_2,kdf_enc(dh(y,dh_pk(sk_dp_eph_1)))),@occ38_1)
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_dp_eph_1 = sk_dp_eph[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(y),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ38_1 = @occ38[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(y),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+
+Derivation:
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_dp_eph_1 = sk_dp_eph[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(y),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ38_1 = @occ38[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(y),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+tid_3 = tid[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+serverChallenge_3 = serverChallenge[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+euiccChallenge_4 = euiccChallenge_1[!1 = @sid_3]
+
+1. The message (devMain[],euiccChallenge_2) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_2)).
+
+2. By 1, the attacker may know (devMain[],euiccChallenge_2).
+Using the function 2-proj-2-tuple the attacker may obtain euiccChallenge_2.
+attacker(euiccChallenge_2).
+
+3. The message (devMain[],euiccChallenge_4) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_4)).
+
+4. By 3, the attacker may know (devMain[],euiccChallenge_4).
+Using the function 1-proj-2-tuple the attacker may obtain devMain[].
+attacker(devMain[]).
+
+5. By 4, the attacker may know devMain[].
+By 2, the attacker may know euiccChallenge_2.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_2).
+attacker((devMain[],euiccChallenge_2)).
+
+6. The message signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI) may be sent to the attacker at output {52}.
+attacker(signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+
+7. The attacker has some term euiccChallenge_3.
+attacker(euiccChallenge_3).
+
+8. By 4, the attacker may know devMain[].
+By 7, the attacker may know euiccChallenge_3.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_3).
+attacker((devMain[],euiccChallenge_3)).
+
+9. The message (devMain[],euiccChallenge_3) that the attacker may have by 8 may be received at input {15}.
+So the message (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+10. By 9, the attacker may know (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 4-proj-4-tuple the attacker may obtain signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+attacker(signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+
+11. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+So the message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+12. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 3-proj-4-tuple the attacker may obtain serverChallenge_2.
+attacker(serverChallenge_2).
+
+13. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 2-proj-4-tuple the attacker may obtain sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+attacker(sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth)).
+
+14. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 1-proj-4-tuple the attacker may obtain tid_2.
+attacker(tid_2).
+
+15. By 14, the attacker may know tid_2.
+By 13, the attacker may know sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+By 12, the attacker may know serverChallenge_2.
+By 10, the attacker may know signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+Using the function 4-tuple the attacker may obtain (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+16. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 15 may be received at input {55}.
+So the message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) may be sent to the attacker at output {64}.
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+17. By 16, the attacker may know (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+Using the function 2-proj-3-tuple the attacker may obtain sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+attacker(sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[])).
+
+18. By 14, the attacker may know tid_2.
+By 17, the attacker may know sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+By 6, the attacker may know signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI).
+Using the function 3-tuple the attacker may obtain (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+19. We assume as hypothesis that
+attacker(euiccSig2_2).
+
+20. We assume as hypothesis that
+attacker(y).
+
+21. By 20, the attacker may know y.
+Using the function dh_pk the attacker may obtain dh_pk(y).
+attacker(dh_pk(y)).
+
+22. By 14, the attacker may know tid_2.
+By 21, the attacker may know dh_pk(y).
+By 19, the attacker may know euiccSig2_2.
+Using the function 3-tuple the attacker may obtain (tid_2,dh_pk(y),euiccSig2_2).
+attacker((tid_2,dh_pk(y),euiccSig2_2)).
+
+23. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+The message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) that the attacker may have by 18 may be received at input {23}.
+The message (tid_2,dh_pk(y),euiccSig2_2) that the attacker may have by 22 may be received at input {32}.
+So event SMDP_KEY(devMain[],tid_2,kdf_enc(dh(y,dh_pk(sk_dp_eph_1)))) may be executed at {38} in session @sid_1.
+inj-event(SMDP_KEY(devMain[],tid_2,kdf_enc(dh(y,dh_pk(sk_dp_eph_1)))),@occ38_1).
+
+24. By 23, inj-event(SMDP_KEY(devMain[],tid_2,kdf_enc(dh(y,dh_pk(sk_dp_eph_1)))),@occ38_1).
+The goal is reached, represented in the following fact:
+inj-event(SMDP_KEY(devMain[],tid_2,kdf_enc(dh(y,dh_pk(sk_dp_eph_1)))),@occ38_1).
+
+
+RESULT inj-event(SMDP_KEY(dev_2,tid_2,k)) ==> inj-event(EUICC_KEY(dev_2,tid_2,k)) cannot be proved.
+RESULT (even event(SMDP_KEY(dev_2,tid_2,k)) ==> event(EUICC_KEY(dev_2,tid_2,k)) cannot be proved.)
+-- Query not attacker_p1(secret_profile[]) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 166 rules (74 with conclusion selected). Queue: 18 rules.
+400 rules inserted. Base: 255 rules (86 with conclusion selected). Queue: 6 rules.
+Starting query not attacker_p1(secret_profile[])
+goal reachable: attacker_p1(secret_profile[])
+
+Derivation:
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_dp_eph_1 = sk_dp_eph[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(x),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+tid_3 = tid[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+serverChallenge_3 = serverChallenge[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+euiccChallenge_4 = euiccChallenge_1[!1 = @sid_3]
+
+1. The message (devMain[],euiccChallenge_2) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_2)).
+
+2. By 1, the attacker may know (devMain[],euiccChallenge_2).
+Using the function 2-proj-2-tuple the attacker may obtain euiccChallenge_2.
+attacker(euiccChallenge_2).
+
+3. The message (devMain[],euiccChallenge_4) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_4)).
+
+4. By 3, the attacker may know (devMain[],euiccChallenge_4).
+Using the function 1-proj-2-tuple the attacker may obtain devMain[].
+attacker(devMain[]).
+
+5. By 4, the attacker may know devMain[].
+By 2, the attacker may know euiccChallenge_2.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_2).
+attacker((devMain[],euiccChallenge_2)).
+
+6. The message signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI) may be sent to the attacker at output {52}.
+attacker(signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+
+7. The attacker has some term euiccChallenge_3.
+attacker(euiccChallenge_3).
+
+8. By 4, the attacker may know devMain[].
+By 7, the attacker may know euiccChallenge_3.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_3).
+attacker((devMain[],euiccChallenge_3)).
+
+9. The message (devMain[],euiccChallenge_3) that the attacker may have by 8 may be received at input {15}.
+So the message (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+10. By 9, the attacker may know (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 4-proj-4-tuple the attacker may obtain signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+attacker(signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+
+11. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+So the message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+12. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 3-proj-4-tuple the attacker may obtain serverChallenge_2.
+attacker(serverChallenge_2).
+
+13. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 2-proj-4-tuple the attacker may obtain sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+attacker(sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth)).
+
+14. By 11, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 1-proj-4-tuple the attacker may obtain tid_2.
+attacker(tid_2).
+
+15. By 14, the attacker may know tid_2.
+By 13, the attacker may know sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+By 12, the attacker may know serverChallenge_2.
+By 10, the attacker may know signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+Using the function 4-tuple the attacker may obtain (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+16. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 15 may be received at input {55}.
+So the message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) may be sent to the attacker at output {64}.
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+17. By 16, the attacker may know (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+Using the function 2-proj-3-tuple the attacker may obtain sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+attacker(sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[])).
+
+18. By 14, the attacker may know tid_2.
+By 17, the attacker may know sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+By 6, the attacker may know signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI).
+Using the function 3-tuple the attacker may obtain (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+19. The attacker has some term euiccSig2_2.
+attacker(euiccSig2_2).
+
+20. The attacker has some term x.
+attacker(x).
+
+21. By 20, the attacker may know x.
+Using the function dh_pk the attacker may obtain dh_pk(x).
+attacker(dh_pk(x)).
+
+22. By 14, the attacker may know tid_2.
+By 21, the attacker may know dh_pk(x).
+By 19, the attacker may know euiccSig2_2.
+Using the function 3-tuple the attacker may obtain (tid_2,dh_pk(x),euiccSig2_2).
+attacker((tid_2,dh_pk(x),euiccSig2_2)).
+
+23. The message (devMain[],euiccChallenge_2) that the attacker may have by 5 may be received at input {15}.
+The message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) that the attacker may have by 18 may be received at input {23}.
+The message (tid_2,dh_pk(x),euiccSig2_2) that the attacker may have by 22 may be received at input {32}.
+So the message (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))) may be sent to the attacker at output {45}.
+attacker((tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))))))).
+
+24. By 23, the attacker may know (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))).
+Using the function 3-proj-5-tuple the attacker may obtain dh_pk(sk_dp_eph_1).
+attacker(dh_pk(sk_dp_eph_1)).
+
+25. By 20, the attacker may know x.
+By 24, the attacker may know dh_pk(sk_dp_eph_1).
+Using the function dh the attacker may obtain dh(sk_dp_eph_1,dh_pk(x)).
+attacker(dh(sk_dp_eph_1,dh_pk(x))).
+
+26. By 25, the attacker may know dh(sk_dp_eph_1,dh_pk(x)).
+Using the function kdf_enc the attacker may obtain kdf_enc(dh(sk_dp_eph_1,dh_pk(x))).
+attacker(kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+
+27. By 23, the attacker may know (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(x)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(x))),mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))))).
+Using the function 4-proj-5-tuple the attacker may obtain mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+attacker(mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))))).
+
+28. By 27, the attacker may know mk_bpp_body(tid_2,dh_pk(x),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+Using the function 4-proj-mk_bpp_body the attacker may obtain senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+attacker(senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x))))).
+
+29. By 28, the attacker may know senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(x)))).
+By 26, the attacker may know kdf_enc(dh(sk_dp_eph_1,dh_pk(x))).
+Using the function sdec the attacker may obtain secret_profile[].
+attacker(secret_profile[]).
+
+30. By 29, the attacker may know secret_profile[].
+So the attacker may know secret_profile[] in phase 1.
+attacker_p1(secret_profile[]).
+
+31. By 30, attacker_p1(secret_profile[]).
+The goal is reached, represented in the following fact:
+attacker_p1(secret_profile[]).
+
+
+RESULT not attacker_p1(secret_profile[]) cannot be proved.
+-- Query inj-event(EUICC_INSTALLED_PROFILE(dev_2,tid_2,p)) ==> inj-event(SMDP_SENT_PROFILE(dev_2,tid_2,p)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+200 rules inserted. Base: 175 rules (74 with conclusion selected). Queue: 21 rules.
+400 rules inserted. Base: 267 rules (84 with conclusion selected). Queue: 10 rules.
+Starting query inj-event(EUICC_INSTALLED_PROFILE(dev_2,tid_2,p)) ==> inj-event(SMDP_SENT_PROFILE(dev_2,tid_2,p))
+goal reachable: b-inj-event(SMDP_SENT_PROFILE(devMain[],tid_2,secret_profile[]),@occ44_1) && attacker(euiccSig2_2) && attacker(p) && attacker(y) -> inj-event(EUICC_INSTALLED_PROFILE(devMain[],tid_2,p),@occ85_1)
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_eu_eph_1 = sk_eu_eph[smdpSig2_pd_1 = sign(mk_smdpSigned2(tid_2),SK_DPauth),CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+@occ85_1 = @occ85[bpp_mac_1 = hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))),bpp_body_1 = mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))),pk_dp_eph_1 = dh_pk(y),smdpSig3_1 = sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),smdpSig2_pd_1 = sign(mk_smdpSigned2(tid_2),SK_DPauth),CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+@occ44_1 = @occ44[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(sk_eu_eph_1),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+
+Derivation:
+Abbreviations:
+euiccChallenge_2 = euiccChallenge_1[!1 = @sid]
+tid_2 = tid[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+serverChallenge_2 = serverChallenge[euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+sk_eu_eph_1 = sk_eu_eph[smdpSig2_pd_1 = sign(mk_smdpSigned2(tid_2),SK_DPauth),CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+@occ85_1 = @occ85[bpp_mac_1 = hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))),bpp_body_1 = mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))),pk_dp_eph_1 = dh_pk(y),smdpSig3_1 = sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),smdpSig2_pd_1 = sign(mk_smdpSigned2(tid_2),SK_DPauth),CERT_DPauth_1 = signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI),serverChallenge_1 = serverChallenge_2,serverSig1_1 = sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),tid_1 = tid_2,!1 = @sid]
+sk_dp_eph_1 = sk_dp_eph[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(sk_eu_eph_1),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+@occ44_1 = @occ44[euiccSig2 = euiccSig2_2,pk_eu_eph = dh_pk(sk_eu_eph_1),CERT_EUICC = signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI),euiccSig1 = sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),euiccChallenge = euiccChallenge_2,!1 = @sid_1]
+tid_3 = tid[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+serverChallenge_3 = serverChallenge[euiccChallenge = euiccChallenge_3,!1 = @sid_2]
+euiccChallenge_4 = euiccChallenge_1[!1 = @sid_3]
+
+1. The attacker has some term euiccChallenge_3.
+attacker(euiccChallenge_3).
+
+2. The message (devMain[],euiccChallenge_4) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_4)).
+
+3. By 2, the attacker may know (devMain[],euiccChallenge_4).
+Using the function 1-proj-2-tuple the attacker may obtain devMain[].
+attacker(devMain[]).
+
+4. By 3, the attacker may know devMain[].
+By 1, the attacker may know euiccChallenge_3.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_3).
+attacker((devMain[],euiccChallenge_3)).
+
+5. The message (devMain[],euiccChallenge_3) that the attacker may have by 4 may be received at input {15}.
+So the message (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+6. By 5, the attacker may know (tid_3,sign(mk_serverSigned1(tid_3,euiccChallenge_3,serverChallenge_3),SK_DPauth),serverChallenge_3,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 4-proj-4-tuple the attacker may obtain signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+attacker(signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+
+7. The message (devMain[],euiccChallenge_2) may be sent to the attacker at output {54}.
+attacker((devMain[],euiccChallenge_2)).
+
+8. By 7, the attacker may know (devMain[],euiccChallenge_2).
+Using the function 2-proj-2-tuple the attacker may obtain euiccChallenge_2.
+attacker(euiccChallenge_2).
+
+9. By 3, the attacker may know devMain[].
+By 8, the attacker may know euiccChallenge_2.
+Using the function 2-tuple the attacker may obtain (devMain[],euiccChallenge_2).
+attacker((devMain[],euiccChallenge_2)).
+
+10. The message (devMain[],euiccChallenge_2) that the attacker may have by 9 may be received at input {15}.
+So the message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) may be sent to the attacker at output {22}.
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+11. By 10, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 3-proj-4-tuple the attacker may obtain serverChallenge_2.
+attacker(serverChallenge_2).
+
+12. By 10, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 2-proj-4-tuple the attacker may obtain sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+attacker(sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth)).
+
+13. By 10, the attacker may know (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+Using the function 1-proj-4-tuple the attacker may obtain tid_2.
+attacker(tid_2).
+
+14. By 13, the attacker may know tid_2.
+By 12, the attacker may know sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth).
+By 11, the attacker may know serverChallenge_2.
+By 6, the attacker may know signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI).
+Using the function 4-tuple the attacker may obtain (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)).
+attacker((tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI))).
+
+15. The message signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI) may be sent to the attacker at output {52}.
+attacker(signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+
+16. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 14 may be received at input {55}.
+So the message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) may be sent to the attacker at output {64}.
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+17. By 16, the attacker may know (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+Using the function 2-proj-3-tuple the attacker may obtain sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+attacker(sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[])).
+
+18. By 13, the attacker may know tid_2.
+By 17, the attacker may know sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]).
+By 15, the attacker may know signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI).
+Using the function 3-tuple the attacker may obtain (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)).
+attacker((tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI))).
+
+19. The message (devMain[],euiccChallenge_2) that the attacker may have by 9 may be received at input {15}.
+The message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) that the attacker may have by 18 may be received at input {23}.
+So the message (tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth)) may be sent to the attacker at output {31}.
+attacker((tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth))).
+
+20. By 19, the attacker may know (tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth)).
+Using the function 2-proj-2-tuple the attacker may obtain sign(mk_smdpSigned2(tid_2),SK_DPauth).
+attacker(sign(mk_smdpSigned2(tid_2),SK_DPauth)).
+
+21. By 13, the attacker may know tid_2.
+By 20, the attacker may know sign(mk_smdpSigned2(tid_2),SK_DPauth).
+Using the function 2-tuple the attacker may obtain (tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth)).
+attacker((tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth))).
+
+22. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 14 may be received at input {55}.
+The message (tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth)) that the attacker may have by 21 may be received at input {65}.
+So the message (tid_2,dh_pk(sk_eu_eph_1),sign(mk_euiccSigned2(tid_2,dh_pk(sk_eu_eph_1)),SK_EUICC[])) may be sent to the attacker at output {73}.
+attacker((tid_2,dh_pk(sk_eu_eph_1),sign(mk_euiccSigned2(tid_2,dh_pk(sk_eu_eph_1)),SK_EUICC[]))).
+
+23. By 22, the attacker may know (tid_2,dh_pk(sk_eu_eph_1),sign(mk_euiccSigned2(tid_2,dh_pk(sk_eu_eph_1)),SK_EUICC[])).
+Using the function 2-proj-3-tuple the attacker may obtain dh_pk(sk_eu_eph_1).
+attacker(dh_pk(sk_eu_eph_1)).
+
+24. We assume as hypothesis that
+attacker(y).
+
+25. By 24, the attacker may know y.
+By 23, the attacker may know dh_pk(sk_eu_eph_1).
+Using the function dh the attacker may obtain dh(y,dh_pk(sk_eu_eph_1)).
+attacker(dh(y,dh_pk(sk_eu_eph_1))).
+
+26. By 25, the attacker may know dh(y,dh_pk(sk_eu_eph_1)).
+Using the function kdf_enc the attacker may obtain kdf_enc(dh(y,dh_pk(sk_eu_eph_1))).
+attacker(kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))).
+
+27. We assume as hypothesis that
+attacker(p).
+
+28. By 27, the attacker may know p.
+By 26, the attacker may know kdf_enc(dh(y,dh_pk(sk_eu_eph_1))).
+Using the function senc the attacker may obtain senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))).
+attacker(senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))).
+
+29. By 24, the attacker may know y.
+Using the function dh_pk the attacker may obtain dh_pk(y).
+attacker(dh_pk(y)).
+
+30. By 13, the attacker may know tid_2.
+By 23, the attacker may know dh_pk(sk_eu_eph_1).
+By 29, the attacker may know dh_pk(y).
+By 28, the attacker may know senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))).
+Using the function mk_bpp_body the attacker may obtain mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))).
+attacker(mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))).
+
+31. By 25, the attacker may know dh(y,dh_pk(sk_eu_eph_1)).
+Using the function kdf_mac the attacker may obtain kdf_mac(dh(y,dh_pk(sk_eu_eph_1))).
+attacker(kdf_mac(dh(y,dh_pk(sk_eu_eph_1)))).
+
+32. By 31, the attacker may know kdf_mac(dh(y,dh_pk(sk_eu_eph_1))).
+By 30, the attacker may know mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))).
+Using the function hmac the attacker may obtain hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))).
+attacker(hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))))).
+
+33. We assume as hypothesis that
+attacker(euiccSig2_2).
+
+34. By 13, the attacker may know tid_2.
+By 23, the attacker may know dh_pk(sk_eu_eph_1).
+By 33, the attacker may know euiccSig2_2.
+Using the function 3-tuple the attacker may obtain (tid_2,dh_pk(sk_eu_eph_1),euiccSig2_2).
+attacker((tid_2,dh_pk(sk_eu_eph_1),euiccSig2_2)).
+
+35. The message (devMain[],euiccChallenge_2) that the attacker may have by 9 may be received at input {15}.
+The message (tid_2,sign(mk_euiccSigned1(tid_2,serverChallenge_2),SK_EUICC[]),signcert(devMain[],sig_pk(SK_EUICC[]),tag_eu,SK_CI)) that the attacker may have by 18 may be received at input {23}.
+The message (tid_2,dh_pk(sk_eu_eph_1),euiccSig2_2) that the attacker may have by 34 may be received at input {32}.
+The event SMDP_SENT_PROFILE(devMain[],tid_2,secret_profile[]) (with occurrence name @occ44_1) may be executed at {44}.
+So the message (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))))))) may be sent to the attacker at output {45}.
+attacker((tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1)))))))).
+
+36. By 35, the attacker may know (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(sk_dp_eph_1),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(sk_dp_eph_1),senc(secret_profile[],kdf_enc(dh(sk_dp_eph_1,dh_pk(sk_eu_eph_1))))))).
+Using the function 2-proj-5-tuple the attacker may obtain sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth).
+attacker(sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth)).
+
+37. By 13, the attacker may know tid_2.
+By 36, the attacker may know sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth).
+By 29, the attacker may know dh_pk(y).
+By 30, the attacker may know mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))).
+By 32, the attacker may know hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))).
+Using the function 5-tuple the attacker may obtain (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(y),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))))).
+attacker((tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(y),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1)))))))).
+
+38. The message (tid_2,sign(mk_serverSigned1(tid_2,euiccChallenge_2,serverChallenge_2),SK_DPauth),serverChallenge_2,signcert(devMain[],sig_pk(SK_DPauth),tag_dp,SK_CI)) that the attacker may have by 14 may be received at input {55}.
+The message (tid_2,sign(mk_smdpSigned2(tid_2),SK_DPauth)) that the attacker may have by 21 may be received at input {65}.
+The message (tid_2,sign(mk_smdpSigned3(tid_2,dh_pk(sk_eu_eph_1)),SK_DPauth),dh_pk(y),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))),hmac(kdf_mac(dh(y,dh_pk(sk_eu_eph_1))),mk_bpp_body(tid_2,dh_pk(sk_eu_eph_1),dh_pk(y),senc(p,kdf_enc(dh(y,dh_pk(sk_eu_eph_1))))))) that the attacker may have by 37 may be received at input {74}.
+So event EUICC_INSTALLED_PROFILE(devMain[],tid_2,p) may be executed at {85} in session @sid.
+inj-event(EUICC_INSTALLED_PROFILE(devMain[],tid_2,p),@occ85_1).
+
+39. By 38, inj-event(EUICC_INSTALLED_PROFILE(devMain[],tid_2,p),@occ85_1).
+The goal is reached, represented in the following fact:
+inj-event(EUICC_INSTALLED_PROFILE(devMain[],tid_2,p),@occ85_1).
+
+
+RESULT inj-event(EUICC_INSTALLED_PROFILE(dev_2,tid_2,p)) ==> inj-event(SMDP_SENT_PROFILE(dev_2,tid_2,p)) cannot be proved.
+RESULT (even event(EUICC_INSTALLED_PROFILE(dev_2,tid_2,p)) ==> event(SMDP_SENT_PROFILE(dev_2,tid_2,p)) cannot be proved.)
+
+--------------------------------------------------------------
+Verification summary:
+
+Query not attacker_p1(secret_profile[]) cannot be proved.
+
+Query inj-event(EUICC_VERIFIED_SRV(dev_2,tid_2,t)) ==> inj-event(SMDP_SENT_SRV(dev_2,tid_2,t)) is true.
+
+Query inj-event(SMDP_VERIFIED_CLI(dev_2,tid_2,t)) ==> inj-event(EUICC_SENT_CLI(dev_2,tid_2,t)) is true.
+
+Query inj-event(SMDP_KEY(dev_2,tid_2,k)) ==> inj-event(EUICC_KEY(dev_2,tid_2,k)) cannot be proved.
+
+Query not attacker_p1(secret_profile[]) cannot be proved.
+
+Query inj-event(EUICC_INSTALLED_PROFILE(dev_2,tid_2,p)) ==> inj-event(SMDP_SENT_PROFILE(dev_2,tid_2,p)) cannot be proved.
+
+--------------------------------------------------------------
+

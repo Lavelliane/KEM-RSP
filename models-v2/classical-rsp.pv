@@ -1,0 +1,361 @@
+(* =====================================================================
+   Classical SGP.22 Consumer RSP -- Public-Channel Model
+   (No TLS / transport-layer security)
+
+   This model faithfully captures classical SGP.22 authentication and
+   profile download using ECDSA signatures and ephemeral ECDH, but runs
+   entirely over a PUBLIC ES9 channel -- there is no TLS wrapper.
+
+   The purpose is to demonstrate the vulnerabilities resolved by KEM-RSP:
+     R10  TLS dependence     -- profile confidentiality fails without TLS
+     R7   Server misbinding  -- serverSigned1 omits server OID
+     R9   eUICC misbinding   -- euiccSigned1 omits eUICC identifier
+     BPP  Weak profile bind  -- smdpSigned2 is a separate, weak step
+
+   Protocol message flow (condensed from SGP.22 messages 2-22):
+     [1] eUICC  -> SM-DP+  : euiccChallenge
+     [2] SM-DP+ -> eUICC   : tid, serverSigned1, serverSig1, CERT.DPauth, sChal
+     [3] eUICC  -> SM-DP+  : euiccSigned1, euiccSig1, CERT.EUICC
+         (Phase A complete)
+     [4] SM-DP+ -> eUICC   : smdpSigned2, smdpSig2 (PrepareDownload)
+     [5] eUICC  -> SM-DP+  : pk_eu_eph, euiccSig2  (PrepareDownloadResponse)
+     [6] SM-DP+ -> eUICC   : BPP (smdpSig3, pk_dp_eph, enc_profile, mac)
+         (Phase B complete)
+
+   Queries mirror kemrsp.pv exactly so results are directly comparable:
+     Q1  Profile confidentiality     (expected: FALSE)
+     Q2  SM-DP+ authentication       (expected: true)
+     Q3  eUICC authentication        (expected: true or cannot be proved)
+     Q4  Session key agreement       (expected: FALSE / cannot be proved)
+     Q5  Forward secrecy             (expected: FALSE)
+     Q6  Profile binding             (expected: cannot be proved or true)
+   ===================================================================== *)
+
+set selFun = Term.
+set reconstructTrace = false.
+
+
+(* ===== CHANNELS ===== *)
+free ES9 : channel.     (* PUBLIC -- no TLS, models R10 *)
+free c   : channel.     (* Public for cert/key distribution *)
+
+
+(* ===== DATA TYPES ===== *)
+type SigKey_t.          (* Long-term ECDSA signing key *)
+type SigPk_t.           (* ECDSA verification key *)
+type Sig_t.             (* Digital signature *)
+type Cert_t.            (* X.509-style certificate *)
+type DHKey_t.           (* Ephemeral ECDH private key *)
+type DHPk_t.            (* Ephemeral ECDH public key *)
+type SharedSecret_t.    (* ECDH shared secret *)
+type SymKey_t.          (* Derived symmetric key *)
+type Nonce_t.           (* Challenge nonces *)
+type Tid_t.             (* Transaction identifier *)
+type Id_t.              (* Entity identifier *)
+type Profile_t.         (* eSIM Bound Profile Package *)
+type Tag_t.             (* Role/message tags *)
+
+
+(* ===== CONSTANTS ===== *)
+const SK_CI     : SigKey_t [private].   (* CI root signing key *)
+const SK_DPauth : SigKey_t [private].   (* SM-DP+ long-term signing key *)
+
+const tag_ci    : Tag_t.
+const tag_dp    : Tag_t.
+const tag_eu    : Tag_t.
+
+
+(* ===== CRYPTO PRIMITIVES ===== *)
+
+(* --- ECDSA Signatures --- *)
+fun sig_pk(SigKey_t) : SigPk_t.
+
+fun sign(bitstring, SigKey_t) : Sig_t.
+reduc forall m:bitstring, sk:SigKey_t;
+  checksign(sign(m, sk), sig_pk(sk)) = m.
+
+(* --- CI-issued Certificates --- *)
+fun signcert(Id_t, SigPk_t, Tag_t, SigKey_t) : Cert_t.
+reduc forall id:Id_t, pk:SigPk_t, role:Tag_t, sk:SigKey_t;
+  checkcert(signcert(id, pk, role, sk), sig_pk(sk)) = (id, pk, role).
+
+letfun certificate(id:Id_t, pk:SigPk_t, role:Tag_t) =
+  signcert(id, pk, role, SK_CI).
+
+(* --- Ephemeral ECDH --- *)
+fun dh_pk(DHKey_t) : DHPk_t.
+fun dh(DHKey_t, DHPk_t) : SharedSecret_t.
+equation forall x:DHKey_t, y:DHKey_t;
+  dh(x, dh_pk(y)) = dh(y, dh_pk(x)).
+
+(* --- Key Derivation --- *)
+fun kdf_enc(SharedSecret_t) : SymKey_t.
+fun kdf_mac(SharedSecret_t) : SymKey_t.
+
+(* --- Symmetric Encryption (AEAD) --- *)
+fun senc(Profile_t, SymKey_t) : bitstring.
+reduc forall p:Profile_t, k:SymKey_t;
+  sdec(senc(p, k), k) = p.
+
+(* --- HMAC (used for BPP integrity) --- *)
+fun hmac(SymKey_t, bitstring) : bitstring.
+
+(* --- Signed payload constructors (faithful SGP.22 structure) ---
+   IMPORTANT:
+     serverSigned1 deliberately omits server OID  --> exposes R7
+     euiccSigned1  deliberately omits eUICC id    --> exposes R9
+     smdpSigned2   covers only tid                --> exposes weak binding *)
+fun mk_serverSigned1(Tid_t, Nonce_t, Nonce_t) : bitstring [data].
+fun mk_euiccSigned1(Tid_t, Nonce_t) : bitstring [data].
+fun mk_euiccSigned2(Tid_t, DHPk_t) : bitstring [data].
+fun mk_smdpSigned2(Tid_t) : bitstring [data].
+fun mk_smdpSigned3(Tid_t, DHPk_t) : bitstring [data].
+fun mk_bpp_body(Tid_t, DHPk_t, DHPk_t, bitstring) : bitstring [data].
+
+
+(* ===== EVENTS ===== *)
+
+event SMDP_BEGIN(Id_t, Tid_t).
+
+(* Phase A: explicit SM-DP+ auth (eUICC verifies serverSig1) *)
+event SMDP_SENT_SRV(Id_t, Tid_t, bitstring).
+event EUICC_VERIFIED_SRV(Id_t, Tid_t, bitstring).
+
+(* Phase A: explicit eUICC auth (SM-DP+ verifies euiccSig1) *)
+event EUICC_SENT_CLI(Id_t, Tid_t, bitstring).
+event SMDP_VERIFIED_CLI(Id_t, Tid_t, bitstring).
+
+(* Phase B: session key establishment (derived from ephemeral DH) *)
+event EUICC_KEY(Id_t, Tid_t, SymKey_t).
+event SMDP_KEY(Id_t, Tid_t, SymKey_t).
+
+(* Phase B: profile delivery *)
+event SMDP_SENT_PROFILE(Id_t, Tid_t, Profile_t).
+event EUICC_INSTALLED_PROFILE(Id_t, Tid_t, Profile_t).
+
+
+(* ===== QUERIES (mirror kemrsp.pv) ===== *)
+
+(* Q1: Profile confidentiality -- expect FALSE: attacker MITMs eph DH *)
+free secret_profile : Profile_t [private].
+query attacker(secret_profile).
+
+(* Q2: SM-DP+ authentication -- eUICC accepted a legitimate server *)
+query dev:Id_t, tid:Tid_t, t:bitstring;
+  inj-event(EUICC_VERIFIED_SRV(dev, tid, t)) ==>
+    inj-event(SMDP_SENT_SRV(dev, tid, t)).
+
+(* Q3: eUICC authentication -- SM-DP+ accepted a legitimate eUICC
+   Expect: cannot be proved -- euiccSigned1 lacks eUICC id (R9) *)
+query dev:Id_t, tid:Tid_t, t:bitstring;
+  inj-event(SMDP_VERIFIED_CLI(dev, tid, t)) ==>
+    inj-event(EUICC_SENT_CLI(dev, tid, t)).
+
+(* Q4: Session key agreement -- both derived the same enc key
+   Expect: cannot be proved -- eph DH keys unbound to auth identities *)
+query dev:Id_t, tid:Tid_t, k:SymKey_t;
+  inj-event(SMDP_KEY(dev, tid, k)) ==>
+    inj-event(EUICC_KEY(dev, tid, k)).
+
+(* Q5: Forward secrecy -- profile remains secret after long-term key leak
+   Expect: FALSE -- public channel + ECDSA long-term key not in DH *)
+query attacker(secret_profile) phase 1.
+
+(* Q6: Profile binding -- installed profile was sent by legitimate SM-DP+
+   Expect: true (BPP MAC protects content) or weaker than KEM-RSP *)
+query dev:Id_t, tid:Tid_t, p:Profile_t;
+  inj-event(EUICC_INSTALLED_PROFILE(dev, tid, p)) ==>
+    inj-event(SMDP_SENT_PROFILE(dev, tid, p)).
+
+
+(* =====================================================================
+   eUICC PROCESS
+
+   Phase A: [1] send euiccChallenge;
+            [2] receive and verify serverSigned1 (sig check only);
+            [3] send euiccSigned1 (payload lacks eUICC id -- R9).
+   Phase B: [4] receive and verify smdpSigned2 (weak prepare-download);
+            [5] send pk_eu_eph + euiccSigned2;
+            [6] receive BPP, verify smdpSig3, compute DH, decrypt, install.
+   ===================================================================== *)
+let EUICC(dev:Id_t, PK_CI:SigPk_t, SK_EUICC:SigKey_t) =
+
+  let PK_EUICC   = sig_pk(SK_EUICC) in
+  let CERT_EUICC = certificate(dev, PK_EUICC, tag_eu) in
+  out(c, CERT_EUICC);
+
+  (* [1] Send euiccChallenge *)
+  new euiccChallenge : Nonce_t;
+  out(ES9, (dev, euiccChallenge));
+
+  (* [2] Receive SM-DP+ response *)
+  in(ES9, (tid         : Tid_t,
+           serverSig1  : Sig_t,
+           serverChallenge : Nonce_t,
+           CERT_DPauth : Cert_t));
+
+  (* Verify SM-DP+ certificate against CI root *)
+  let (id_dp:Id_t, PK_DPauth:SigPk_t, role_dp:Tag_t) =
+    checkcert(CERT_DPauth, PK_CI) in
+
+  (* Verify serverSignature1 -- payload deliberately lacks server OID (R7) *)
+  let srv_payload = mk_serverSigned1(tid, euiccChallenge, serverChallenge) in
+  let decoded_srv : bitstring = checksign(serverSig1, PK_DPauth) in
+  if decoded_srv = srv_payload then
+
+  event EUICC_VERIFIED_SRV(dev, tid, srv_payload);
+
+  (* [3] Send euiccSigned1 -- payload deliberately lacks eUICC identifier (R9) *)
+  let cli_payload = mk_euiccSigned1(tid, serverChallenge) in
+  let euiccSig1   = sign(cli_payload, SK_EUICC) in
+  event EUICC_SENT_CLI(dev, tid, cli_payload);
+  out(ES9, (tid, euiccSig1, CERT_EUICC));
+
+  (* [4] Receive PrepareDownload -- smdpSigned2 covers only tid *)
+  in(ES9, (=tid, smdpSig2_pd : Sig_t));
+  let smdp2_payload_pd = mk_smdpSigned2(tid) in
+  let decoded_pd : bitstring = checksign(smdpSig2_pd, PK_DPauth) in
+  if decoded_pd = smdp2_payload_pd then
+
+  (* [5] Generate ephemeral DH keypair and send PrepareDownloadResponse *)
+  new sk_eu_eph : DHKey_t;
+  let pk_eu_eph = dh_pk(sk_eu_eph) in
+  let euicc2_payload = mk_euiccSigned2(tid, pk_eu_eph) in
+  let euiccSig2 = sign(euicc2_payload, SK_EUICC) in
+  out(ES9, (tid, pk_eu_eph, euiccSig2));
+
+  (* [6] Receive BPP *)
+  in(ES9, (=tid,
+           smdpSig3    : Sig_t,
+           pk_dp_eph   : DHPk_t,
+           bpp_body    : bitstring,
+           bpp_mac     : bitstring));
+
+  (* Verify smdpSigned3 (signs tid + pk_eu_eph, not eUICC cert directly) *)
+  let smdp3_payload = mk_smdpSigned3(tid, pk_eu_eph) in
+  let decoded_smdp3 : bitstring = checksign(smdpSig3, PK_DPauth) in
+  if decoded_smdp3 = smdp3_payload then
+
+  (* Compute ephemeral ECDH shared secret and derive keys *)
+  let shs   = dh(sk_eu_eph, pk_dp_eph) in
+  let k_enc = kdf_enc(shs) in
+  let k_mac = kdf_mac(shs) in
+
+  event EUICC_KEY(dev, tid, k_enc);
+
+  (* Verify BPP MAC and decrypt *)
+  let mk_bpp_body(=tid, =pk_eu_eph, =pk_dp_eph, encrypted_profile:bitstring) =
+    bpp_body in
+  if bpp_mac = hmac(k_mac, bpp_body) then
+
+  let profile = sdec(encrypted_profile, k_enc) in
+  event EUICC_INSTALLED_PROFILE(dev, tid, profile).
+
+
+(* =====================================================================
+   SM-DP+ PROCESS
+
+   Phase A: [1] receive euiccChallenge;
+            [2] create and sign serverSigned1 (omits server OID -- R7);
+            [3] receive and verify euiccSigned1 (payload lacks eUICC id -- R9).
+   Phase B: [4] send smdpSigned2 (PrepareDownload, covers only tid);
+            [5] receive pk_eu_eph + euiccSig2;
+            [6] generate eph DH, encrypt profile, send BPP.
+   ===================================================================== *)
+let SMDP(dev:Id_t, PK_CI:SigPk_t, PK_EUICC:SigPk_t, profile:Profile_t) =
+
+  let PK_DPauth   = sig_pk(SK_DPauth) in
+  let CERT_DPauth = certificate(dev, PK_DPauth, tag_dp) in
+
+  (* [1] Receive euiccChallenge *)
+  in(ES9, (=dev, euiccChallenge:Nonce_t));
+
+  new tid             : Tid_t;
+  new serverChallenge : Nonce_t;
+
+  event SMDP_BEGIN(dev, tid);
+
+  (* Phase A: sign serverSigned1 -- omits server OID (R7) *)
+  let srv_payload = mk_serverSigned1(tid, euiccChallenge, serverChallenge) in
+  let serverSig1  = sign(srv_payload, SK_DPauth) in
+
+  event SMDP_SENT_SRV(dev, tid, srv_payload);
+
+  (* [2] Send server response *)
+  out(ES9, (tid, serverSig1, serverChallenge, CERT_DPauth));
+
+  (* [3] Receive eUICC response *)
+  in(ES9, (=tid,
+           euiccSig1  : Sig_t,
+           CERT_EUICC : Cert_t));
+
+  (* Verify eUICC certificate against CI root *)
+  let (id_eu:Id_t, PK_EUICC_in:SigPk_t, role_eu:Tag_t) =
+    checkcert(CERT_EUICC, PK_CI) in
+
+  (* Verify euiccSigned1 -- payload lacks eUICC id; any certified eUICC
+     could produce this signature, so SM-DP+ cannot confirm *which* eUICC
+     authenticated (R9 misbinding) *)
+  let cli_payload = mk_euiccSigned1(tid, serverChallenge) in
+  let decoded_cli : bitstring = checksign(euiccSig1, PK_EUICC_in) in
+  if decoded_cli = cli_payload then
+
+  event SMDP_VERIFIED_CLI(dev, tid, cli_payload);
+
+  (* [4] Send PrepareDownload -- smdpSigned2 covers only tid (weak binding) *)
+  let smdp2_payload = mk_smdpSigned2(tid) in
+  let smdpSig2_pd   = sign(smdp2_payload, SK_DPauth) in
+  out(ES9, (tid, smdpSig2_pd));
+
+  (* [5] Receive eUICC ephemeral public key *)
+  in(ES9, (=tid, pk_eu_eph:DHPk_t, euiccSig2:Sig_t));
+
+  (* Generate SM-DP+ ephemeral DH keypair *)
+  new sk_dp_eph : DHKey_t;
+  let pk_dp_eph = dh_pk(sk_dp_eph) in
+
+  (* Compute ephemeral ECDH shared secret and derive keys *)
+  let shs   = dh(sk_dp_eph, pk_eu_eph) in
+  let k_enc = kdf_enc(shs) in
+  let k_mac = kdf_mac(shs) in
+
+  event SMDP_KEY(dev, tid, k_enc);
+
+  (* Encrypt profile and create BPP *)
+  let encrypted_profile = senc(profile, k_enc) in
+  let bpp_body = mk_bpp_body(tid, pk_eu_eph, pk_dp_eph, encrypted_profile) in
+  let bpp_mac  = hmac(k_mac, bpp_body) in
+
+  (* smdpSigned3 -- signs (tid, pk_eu_eph) but not the eUICC cert/identity *)
+  let smdp3_payload = mk_smdpSigned3(tid, pk_eu_eph) in
+  let smdpSig3      = sign(smdp3_payload, SK_DPauth) in
+
+  event SMDP_SENT_PROFILE(dev, tid, profile);
+
+  (* [6] Send BPP *)
+  out(ES9, (tid, smdpSig3, pk_dp_eph, bpp_body, bpp_mac)).
+
+
+(* =====================================================================
+   MAIN PROCESS
+   ===================================================================== *)
+process
+  let PK_CI     = sig_pk(SK_CI) in
+  let PK_DPauth = sig_pk(SK_DPauth) in
+  out(c, PK_CI);
+  out(c, PK_DPauth);
+
+  new devMain  : Id_t;
+  new SK_EUICC : SigKey_t;
+  let PK_EUICC = sig_pk(SK_EUICC) in
+  out(c, PK_EUICC);
+
+  (
+    ( !SMDP(devMain, PK_CI, PK_EUICC, secret_profile)
+    | !EUICC(devMain, PK_CI, SK_EUICC)
+    )
+  | ( phase 1;
+      out(c, SK_DPauth);
+      out(c, SK_EUICC)
+    )
+  )

@@ -1,0 +1,311 @@
+(* =====================================================================
+   KEM-RSP: KEM-based Consumer Remote SIM Provisioning
+
+   KEMTLS-inspired protocol replacing all signatures with implicit KEM
+   authentication. Three KEM instances yield a six-stage key schedule
+   mirroring TLS 1.3.
+
+   Key schedule chain:
+     dES ─[ss_e]→ HS ─[derived]→ dHS ─[ss_S]→ AHS ─[derived]→ dAHS ─[ss_eUICC]→ MS
+
+   KEM instances:
+     1. Ephemeral  (KEMe)  → forward secrecy          (ss_e)
+     2. Server     (KEMs)  → SM-DP+ authentication     (ss_S)
+     3. Client     (KEMc)  → eUICC authentication      (ss_eUICC)
+
+   Certificate verification abstracted as pre-distributed public keys.
+   ES9+ channel is PUBLIC — proves transport independence (#27).
+   ===================================================================== *)
+
+set selFun = Term.
+set reconstructTrace = false.
+
+
+(* ===== CHANNELS ===== *)
+free ES9 : channel.
+free c   : channel.
+
+
+(* ===== DATA TYPES ===== *)
+type KEMsk_t.
+type KEMpk_t.
+type KEMss_t.
+type KEMcoin_t.
+type SymKey_t.
+type Tid_t.
+type Id_t.
+type Profile_t.
+
+
+(* ===== CONSTANTS ===== *)
+const SK_SMDP : KEMsk_t [private].
+
+
+(* ===== CRYPTO: ML-KEM (IND-CCA) ===== *)
+fun kem_pk(KEMsk_t) : KEMpk_t.
+
+fun kem_enc(KEMpk_t, KEMcoin_t) : bitstring [data].
+fun kem_ss(KEMpk_t, KEMcoin_t) : KEMss_t [private].
+
+reduc forall sk:KEMsk_t, r:KEMcoin_t;
+  kem_dec(kem_enc(kem_pk(sk), r), sk) = kem_ss(kem_pk(sk), r).
+
+
+(* ===== KEY SCHEDULE (TLS 1.3 / KEMTLS) ===== *)
+(* HS = HKDF(dES, ss_e)  — dES = HKDF(0,0) folded in *)
+fun derive_hs(KEMss_t) : bitstring.
+
+(* dHS = HKDF(HS, "derived"),  dAHS = HKDF(AHS, "derived") *)
+fun derive_state(bitstring) : bitstring.
+
+(* AHS = HKDF(dHS, ss_S) *)
+fun derive_ahs(bitstring, KEMss_t) : bitstring.
+
+(* MS = HKDF(dAHS, ss_eUICC) *)
+fun derive_ms(bitstring, KEMss_t) : bitstring.
+
+(* Keys derived from master secret *)
+fun kdf_fk_s(bitstring) : SymKey_t.
+fun kdf_fk_c(bitstring) : SymKey_t.
+fun kdf_sats(bitstring) : SymKey_t.
+
+
+(* ===== HMAC ===== *)
+fun hmac(SymKey_t, bitstring) : bitstring.
+
+
+(* ===== SYMMETRIC ENCRYPTION ===== *)
+fun senc(Profile_t, SymKey_t) : bitstring.
+reduc forall p:Profile_t, k:SymKey_t;
+  sdec(senc(p, k), k) = p.
+
+
+(* ===== EVENTS ===== *)
+event SMDP_BEGIN(Id_t, Tid_t).
+
+event SMDP_SENT_SF(Id_t, Tid_t, bitstring).
+event EUICC_VERIFIED_SF(Id_t, Tid_t, bitstring).
+
+event EUICC_SENT_CF(Id_t, Tid_t, bitstring).
+event SMDP_VERIFIED_CF(Id_t, Tid_t, bitstring).
+
+event EUICC_KEY(Id_t, Tid_t, SymKey_t).
+event SMDP_KEY(Id_t, Tid_t, SymKey_t).
+
+event SMDP_SENT_PROFILE(Id_t, Tid_t, Profile_t).
+event EUICC_INSTALLED_PROFILE(Id_t, Tid_t, Profile_t).
+
+
+(* ===== QUERIES ===== *)
+
+(* #9: Mutual Authentication — eUICC authenticates SM-DP+ via SF *)
+query dev:Id_t, tid:Tid_t, t:bitstring;
+  inj-event(EUICC_VERIFIED_SF(dev, tid, t)) ==>
+    inj-event(SMDP_SENT_SF(dev, tid, t)).
+
+(* #9: Mutual Authentication — SM-DP+ authenticates eUICC via CF *)
+query dev:Id_t, tid:Tid_t, t:bitstring;
+  inj-event(SMDP_VERIFIED_CF(dev, tid, t)) ==>
+    inj-event(EUICC_SENT_CF(dev, tid, t)).
+
+(* #3: Session Key Agreement — both derive the same SATS *)
+query dev:Id_t, tid:Tid_t, k:SymKey_t;
+  inj-event(SMDP_KEY(dev, tid, k)) ==>
+    inj-event(EUICC_KEY(dev, tid, k)).
+
+(* #10: Injective Agreement — profile delivery authenticity *)
+query dev:Id_t, tid:Tid_t, p:Profile_t;
+  inj-event(EUICC_INSTALLED_PROFILE(dev, tid, p)) ==>
+    inj-event(SMDP_SENT_PROFILE(dev, tid, p)).
+
+(* #13: Profile Data Confidentiality *)
+free secret_profile : Profile_t [private].
+query attacker(secret_profile).
+
+(* #14: Forward Secrecy — profile secret after long-term key compromise *)
+query attacker(secret_profile) phase 1.
+
+(* #27: Transport Independence — proven by construction: ES9 is public *)
+
+
+(* =====================================================================
+   eUICC PROCESS
+
+   Message flow (eUICC perspective):
+     Send [2]  → pk_e
+     Recv [4]  ← ct_e, tid
+     Send [7]  → ct_S, pk_eUICC
+     Recv [10] ← ct_eUICC, SF
+     Send [12] → CF
+     Recv [14] ← BPP
+   ===================================================================== *)
+let EUICC(dev:Id_t, PK_SMDP_KEM:KEMpk_t, SK_EUICC_KEM:KEMsk_t) =
+
+  let PK_EUICC_KEM = kem_pk(SK_EUICC_KEM) in
+
+  (* Phase 1: Generate ephemeral KEM keypair *)
+  new SK_EPH : KEMsk_t;
+  let PK_EPH = kem_pk(SK_EPH) in
+
+  (* [2] eUICC Hello *)
+  out(ES9, (dev, PK_EPH));
+
+  (* [4] SM-DP+ Hello *)
+  in(ES9, (tid:Tid_t, CT_E:bitstring));
+
+  (* (5a) Decapsulate ephemeral *)
+  let SS_E = kem_dec(CT_E, SK_EPH) in
+
+  (* (5b-5d) Key schedule — handshake *)
+  let HS  = derive_hs(SS_E) in
+  let dHS = derive_state(HS) in
+
+  (* Phase 2: Encapsulate to SM-DP+ static key — implicit server auth *)
+  new r_s : KEMcoin_t;
+  let CT_S = kem_enc(PK_SMDP_KEM, r_s) in
+  let SS_S = kem_ss(PK_SMDP_KEM, r_s) in
+
+  (* [7] eUICC Auth *)
+  out(ES9, (tid, CT_S, PK_EUICC_KEM));
+
+  (* (8d-8f) equivalent — eUICC already knows SS_S *)
+  let AHS  = derive_ahs(dHS, SS_S) in
+  let dAHS = derive_state(AHS) in
+
+  (* [10] SM-DP+ Auth *)
+  in(ES9, (=tid, CT_EU:bitstring, SF_in:bitstring));
+
+  (* (11a) Decapsulate client KEM *)
+  let SS_EU = kem_dec(CT_EU, SK_EUICC_KEM) in
+
+  (* (11b-11d) Key schedule — master secret *)
+  let MS   = derive_ms(dAHS, SS_EU) in
+  let fk_s = kdf_fk_s(MS) in
+  let fk_c = kdf_fk_c(MS) in
+  let SATS = kdf_sats(MS) in
+
+  let transcript:bitstring = (PK_EPH, CT_E, tid, CT_S, CT_EU,
+                               PK_EUICC_KEM, PK_SMDP_KEM) in
+
+  (* (11e) Verify SF — explicit SM-DP+ authentication *)
+  if SF_in = hmac(fk_s, transcript) then
+
+  event EUICC_VERIFIED_SF(dev, tid, transcript);
+  event EUICC_KEY(dev, tid, SATS);
+
+  (* [12] eUICC Finished *)
+  let CF = hmac(fk_c, transcript) in
+  event EUICC_SENT_CF(dev, tid, transcript);
+  out(ES9, (tid, CF));
+
+  (* [14] Bound Profile Package *)
+  in(ES9, (=tid, encrypted_profile:bitstring));
+
+  let profile = sdec(encrypted_profile, SATS) in
+  event EUICC_INSTALLED_PROFILE(dev, tid, profile).
+
+
+(* =====================================================================
+   SM-DP+ PROCESS
+
+   Message flow (SM-DP+ perspective):
+     Recv [2]  ← pk_e
+     Send [4]  → ct_e, tid
+     Recv [7]  ← ct_S, pk_eUICC
+     Send [10] → ct_eUICC, SF
+     Recv [12] ← CF
+     Send [14] → BPP
+   ===================================================================== *)
+let SMDP(dev:Id_t, PK_EUICC_KEM:KEMpk_t, profile:Profile_t) =
+
+  let PK_SMDP_KEM = kem_pk(SK_SMDP) in
+
+  (* [2] eUICC Hello *)
+  in(ES9, (=dev, PK_EPH:KEMpk_t));
+
+  new tid : Tid_t;
+  event SMDP_BEGIN(dev, tid);
+
+  (* (3a) Encapsulate to ephemeral key *)
+  new r_e : KEMcoin_t;
+  let CT_E = kem_enc(PK_EPH, r_e) in
+  let SS_E = kem_ss(PK_EPH, r_e) in
+
+  (* (3b-3d) Key schedule — handshake *)
+  let HS  = derive_hs(SS_E) in
+  let dHS = derive_state(HS) in
+
+  (* [4] SM-DP+ Hello *)
+  out(ES9, (tid, CT_E));
+
+  (* [7] eUICC Auth *)
+  in(ES9, (=tid, CT_S:bitstring, PK_EUICC_IN:KEMpk_t));
+
+  (* Certificate verification abstracted as public key check *)
+  if PK_EUICC_IN = PK_EUICC_KEM then
+
+  (* (8a) Decapsulate server KEM *)
+  let SS_S = kem_dec(CT_S, SK_SMDP) in
+
+  (* (8d-8f) Key schedule — auth handshake *)
+  let AHS  = derive_ahs(dHS, SS_S) in
+  let dAHS = derive_state(AHS) in
+
+  (* Phase 3: Encapsulate to eUICC static key — implicit client auth *)
+  new r_eu : KEMcoin_t;
+  let CT_EU = kem_enc(PK_EUICC_KEM, r_eu) in
+  let SS_EU = kem_ss(PK_EUICC_KEM, r_eu) in
+
+  (* (9c-9e) Key schedule — master secret *)
+  let MS   = derive_ms(dAHS, SS_EU) in
+  let fk_s = kdf_fk_s(MS) in
+  let fk_c = kdf_fk_c(MS) in
+  let SATS = kdf_sats(MS) in
+
+  let transcript:bitstring = (PK_EPH, CT_E, tid, CT_S, CT_EU,
+                               PK_EUICC_KEM, PK_SMDP_KEM) in
+
+  (* (9f) Compute SF — explicit SM-DP+ authentication *)
+  let SF = hmac(fk_s, transcript) in
+  event SMDP_SENT_SF(dev, tid, transcript);
+
+  (* [10] SM-DP+ Auth *)
+  out(ES9, (tid, CT_EU, SF));
+
+  (* [12] eUICC Finished *)
+  in(ES9, (=tid, CF_in:bitstring));
+
+  (* (13a) Verify CF — explicit eUICC authentication *)
+  if CF_in = hmac(fk_c, transcript) then
+
+  event SMDP_VERIFIED_CF(dev, tid, transcript);
+  event SMDP_KEY(dev, tid, SATS);
+
+  (* [14] Bound Profile Package encrypted under SATS (Stage 6) *)
+  let encrypted_profile = senc(profile, SATS) in
+  event SMDP_SENT_PROFILE(dev, tid, profile);
+  out(ES9, (tid, encrypted_profile)).
+
+
+(* =====================================================================
+   MAIN PROCESS
+   ===================================================================== *)
+process
+  new devMain : Id_t;
+
+  new SK_EUICC : KEMsk_t;
+  let PK_EUICC = kem_pk(SK_EUICC) in
+  let PK_SMDP  = kem_pk(SK_SMDP) in
+
+  out(c, PK_EUICC);
+  out(c, PK_SMDP);
+
+  (
+    ( !SMDP(devMain, PK_EUICC, secret_profile)
+    | !EUICC(devMain, PK_SMDP, SK_EUICC)
+    )
+  | ( phase 1;
+      out(c, SK_SMDP);
+      out(c, SK_EUICC)
+    )
+  )
